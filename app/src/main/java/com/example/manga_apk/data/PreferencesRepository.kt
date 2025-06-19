@@ -29,9 +29,13 @@ class PreferencesRepository(private val context: Context) {
     val aiConfigFlow: Flow<AIConfig> = context.dataStore.data
         .map { preferences ->
             AIConfig(
-                provider = AIProvider.valueOf(
-                    preferences[AI_PROVIDER_KEY] ?: AIProvider.OPENAI.name
-                ),
+                provider = try {
+                    AIProvider.valueOf(
+                        preferences[AI_PROVIDER_KEY] ?: AIProvider.OPENAI.name
+                    )
+                } catch (e: IllegalArgumentException) {
+                    AIProvider.OPENAI // fallback to OPENAI if invalid provider name
+                },
                 apiKey = preferences[API_KEY] ?: "",
                 customEndpoint = preferences[CUSTOM_ENDPOINT_KEY] ?: "",
                 customModel = preferences[CUSTOM_MODEL_KEY] ?: "",

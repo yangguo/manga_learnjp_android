@@ -78,7 +78,13 @@ fun MangaAnalysisScreen(
                 UploadSection(
                     selectedImage = uiState.selectedImage,
                     onImageSelect = { imagePickerLauncher.launch("image/*") },
-                    isProcessing = uiState.isProcessing
+                    isProcessing = uiState.isProcessing,
+                    onQuickAnalysis = { 
+                        viewModel.setMode(AnalysisMode.SIMPLE_ANALYSIS)
+                        viewModel.analyzeFullImage() 
+                    },
+                    onPanelAnalysis = { viewModel.setMode(AnalysisMode.PANEL_ANALYSIS) },
+                    onReadingMode = { viewModel.setMode(AnalysisMode.READING_MODE) }
                 )
             }
             AnalysisMode.PANEL_ANALYSIS -> {
@@ -86,7 +92,8 @@ fun MangaAnalysisScreen(
                     panels = uiState.panels,
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
-                    onAnalyzePanel = viewModel::analyzePanel
+                    onAnalyzePanel = viewModel::analyzePanel,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
                 )
             }
             AnalysisMode.SIMPLE_ANALYSIS -> {
@@ -94,7 +101,8 @@ fun MangaAnalysisScreen(
                     analysis = uiState.overallAnalysis,
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
-                    onAnalyze = viewModel::analyzeFullImage
+                    onAnalyze = viewModel::analyzeFullImage,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
                 )
             }
             AnalysisMode.READING_MODE -> {
@@ -143,7 +151,10 @@ fun MangaAnalysisScreen(
 fun UploadSection(
     selectedImage: android.graphics.Bitmap?,
     onImageSelect: () -> Unit,
-    isProcessing: Boolean
+    isProcessing: Boolean,
+    onQuickAnalysis: () -> Unit,
+    onPanelAnalysis: () -> Unit,
+    onReadingMode: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -232,14 +243,98 @@ fun UploadSection(
             }
         }
         
-        if (selectedImage != null) {
-            Spacer(modifier = Modifier.height(16.dp))
+        if (selectedImage != null && !isProcessing) {
+            Spacer(modifier = Modifier.height(24.dp))
+            
             Text(
-                text = "Image uploaded successfully! Choose an analysis mode below.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Choose an analysis method:",
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Analysis buttons
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Quick Analysis Button
+                Button(
+                    onClick = onQuickAnalysis,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Analytics,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Quick AI Analysis")
+                }
+                
+                // Panel Analysis Button
+                OutlinedButton(
+                    onClick = onPanelAnalysis,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Default.GridView,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Panel-by-Panel Analysis")
+                }
+                
+                // Reading Mode Button
+                OutlinedButton(
+                    onClick = onReadingMode,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Default.MenuBook,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Interactive Reading Mode")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Description text
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "• Quick Analysis: Get instant translation and vocabulary",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "• Panel Analysis: Break down manga into individual panels",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "• Reading Mode: Interactive study with word lookup",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -301,12 +396,41 @@ fun PanelAnalysisSection(
     panels: List<PanelSegment>,
     selectedImage: android.graphics.Bitmap?,
     isProcessing: Boolean,
-    onAnalyzePanel: (PanelSegment) -> Unit
+    onAnalyzePanel: (PanelSegment) -> Unit,
+    onBackToUpload: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Header with back button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Panel Analysis",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            OutlinedButton(
+                onClick = onBackToUpload
+            ) {
+                Icon(
+                    Icons.Default.Upload,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("New Image")
+            }
+        }
+        
         if (selectedImage == null) {
             Card(
                 colors = CardDefaults.cardColors(
@@ -425,12 +549,41 @@ fun SimpleAnalysisSection(
     analysis: TextAnalysis?,
     selectedImage: android.graphics.Bitmap?,
     isProcessing: Boolean,
-    onAnalyze: () -> Unit
+    onAnalyze: () -> Unit,
+    onBackToUpload: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Header with back button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "AI Text Analysis",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            OutlinedButton(
+                onClick = onBackToUpload
+            ) {
+                Icon(
+                    Icons.Default.Upload,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("New Image")
+            }
+        }
+        
         if (selectedImage == null) {
             Card(
                 colors = CardDefaults.cardColors(
@@ -448,6 +601,12 @@ fun SimpleAnalysisSection(
                 onClick = onAnalyze,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                Icon(
+                    Icons.Default.Analytics,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text("Analyze Full Image")
             }
         } else if (isProcessing) {

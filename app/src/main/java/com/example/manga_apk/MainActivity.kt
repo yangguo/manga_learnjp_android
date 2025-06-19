@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -91,8 +93,9 @@ fun MangaApp() {
             val mangaViewModel: MangaAnalysisViewModel = viewModel(
                 factory = MangaAnalysisViewModelFactory(context)
             )
+            val uiState by mangaViewModel.uiState.collectAsState()
             AISettingsScreen(
-                aiConfig = mangaViewModel.uiState.value.aiConfig,
+                aiConfig = uiState.aiConfig,
                 onConfigUpdate = { config ->
                     mangaViewModel.updateAIConfig(config)
                 },

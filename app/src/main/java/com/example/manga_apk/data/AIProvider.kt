@@ -14,7 +14,10 @@ data class AIConfig(
     val customEndpoint: String = "",
     val customModel: String = "",
     val textModel: String = "gpt-4-turbo",
-    val visionModel: String = "gpt-4-vision-preview"
+    val visionModel: String = "gpt-4-vision-preview",
+    val includeGrammar: Boolean = true,
+    val includeVocabulary: Boolean = true,
+    val includeTranslation: Boolean = true
 )
 
 data class VocabularyItem(

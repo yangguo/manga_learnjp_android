@@ -144,9 +144,9 @@ fun AISettingsScreen(
                     
                     if (currentConfig.provider == AIProvider.CUSTOM) {
                         OutlinedTextField(
-                            value = currentConfig.baseUrl,
+                            value = currentConfig.customEndpoint,
                             onValueChange = { newUrl ->
-                                currentConfig = currentConfig.copy(baseUrl = newUrl)
+                                currentConfig = currentConfig.copy(customEndpoint = newUrl)
                                 onConfigUpdate(currentConfig)
                             },
                             label = { Text("Base URL") },
@@ -156,9 +156,9 @@ fun AISettingsScreen(
                         )
                         
                         OutlinedTextField(
-                            value = currentConfig.model,
+                            value = currentConfig.customModel,
                             onValueChange = { newModel ->
-                                currentConfig = currentConfig.copy(model = newModel)
+                                currentConfig = currentConfig.copy(customModel = newModel)
                                 onConfigUpdate(currentConfig)
                             },
                             label = { Text("Model Name") },

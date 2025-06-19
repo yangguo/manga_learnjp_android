@@ -172,15 +172,21 @@ fun InteractivePanelCard(
             
             // Panel Preview (if original image is available)
             originalImage?.let { bitmap ->
-                try {
-                    val panelBitmap = android.graphics.Bitmap.createBitmap(
-                        bitmap,
-                        panel.x.coerceAtLeast(0),
-                        panel.y.coerceAtLeast(0),
-                        panel.width.coerceAtMost(bitmap.width - panel.x),
-                        panel.height.coerceAtMost(bitmap.height - panel.y)
-                    )
-                    
+                val panelBitmap = remember(panel, bitmap) {
+                    try {
+                        android.graphics.Bitmap.createBitmap(
+                            bitmap,
+                            panel.x.coerceAtLeast(0),
+                            panel.y.coerceAtLeast(0),
+                            panel.width.coerceAtMost(bitmap.width - panel.x),
+                            panel.height.coerceAtMost(bitmap.height - panel.y)
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                
+                if (panelBitmap != null) {
                     AsyncImage(
                         model = panelBitmap,
                         contentDescription = "Panel ${panel.readingOrder}",
@@ -190,7 +196,7 @@ fun InteractivePanelCard(
                             .clip(RoundedCornerShape(8.dp)),
                         contentScale = ContentScale.Fit
                     )
-                } catch (e: Exception) {
+                } else {
                     // Handle bitmap creation error
                     Box(
                         modifier = Modifier
@@ -423,8 +429,8 @@ fun WordAnalysisDialog(
                     if (word.partOfSpeech.isNotEmpty()) {
                         DetailRow("Part of Speech", word.partOfSpeech)
                     }
-                    if (word.difficulty.isNotEmpty()) {
-                        DetailRow("Difficulty", word.difficulty)
+                    if (word.difficulty > 0) {
+                        DetailRow("Difficulty", word.difficulty.toString())
                     }
                 }
             }

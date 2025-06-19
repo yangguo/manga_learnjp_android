@@ -219,44 +219,6 @@ class AIService {
     }
     
     companion object {
-        private const val MANGA_ANALYSIS_PROMPT = """
-            Analyze this manga image and extract all Japanese text. For each text element found, provide:
-            
-            1. The original Japanese text
-            2. Vocabulary breakdown with:
-               - Individual words
-               - Hiragana/katakana readings
-               - English meanings
-               - Part of speech
-               - JLPT level if applicable
-            3. Grammar patterns used
-            4. English translation
-            5. Context and cultural notes
-            
-            Return the response in JSON format with the following structure:
-            {
-              "originalText": "extracted Japanese text",
-              "vocabulary": [
-                {
-                  "word": "word",
-                  "reading": "reading",
-                  "meaning": "meaning",
-                  "partOfSpeech": "noun/verb/etc",
-                  "jlptLevel": "N1-N5",
-                  "difficulty": 1-5
-                }
-              ],
-              "grammarPatterns": [
-                {
-                  "pattern": "grammar pattern",
-                  "explanation": "explanation",
-                  "example": "example",
-                  "difficulty": "beginner/intermediate/advanced"
-                }
-              ],
-              "translation": "English translation",
-              "context": "cultural context and notes"
-            }
-        """.trimIndent()
+        private const val MANGA_ANALYSIS_PROMPT = "Analyze this manga image and extract all Japanese text. For each text element found, provide: 1. The original Japanese text 2. Vocabulary breakdown with: - Individual words - Hiragana/katakana readings - English meanings - Part of speech - JLPT level if applicable 3. Grammar patterns used 4. English translation 5. Context and cultural notes. Return the response in JSON format with the following structure: { \"originalText\": \"extracted Japanese text\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"noun/verb/etc\", \"jlptLevel\": \"N1-N5\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"grammar pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"beginner/intermediate/advanced\" }], \"translation\": \"English translation\", \"context\": \"cultural context and notes\" }"
     }
 }

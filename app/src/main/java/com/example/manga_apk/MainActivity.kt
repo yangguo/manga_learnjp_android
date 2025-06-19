@@ -61,10 +61,7 @@ fun MangaApp() {
         composable("reading_mode") {
             val viewModel: ReadingViewModel = viewModel()
             ReadingScreen(
-                viewModel = viewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                viewModel = viewModel
             )
         }
         

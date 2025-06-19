@@ -33,6 +33,11 @@ fun AISettingsScreen(
     var currentConfig by remember { mutableStateOf(aiConfig) }
     var showApiKey by remember { mutableStateOf(false) }
     
+    // Update currentConfig when aiConfig changes (e.g., when navigating back to screen)
+    LaunchedEffect(aiConfig) {
+        currentConfig = aiConfig
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(

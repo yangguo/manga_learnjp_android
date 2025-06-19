@@ -12,7 +12,10 @@ import com.example.manga_apk.service.PanelSegmentationService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.SharingStarted
 
 enum class AnalysisMode {
     UPLOAD,
@@ -32,10 +35,21 @@ data class MangaAnalysisUiState(
     val error: String? = null
 )
 
-class MangaAnalysisViewModel : ViewModel() {
+class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
+    private val preferencesRepository = PreferencesRepository(context)
     private val _uiState = MutableStateFlow(MangaAnalysisUiState())
-    val uiState: StateFlow<MangaAnalysisUiState> = _uiState.asStateFlow()
+    
+    val uiState: StateFlow<MangaAnalysisUiState> = combine(
+        _uiState,
+        preferencesRepository.aiConfigFlow
+    ) { state, aiConfig ->
+        state.copy(aiConfig = aiConfig)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = MangaAnalysisUiState()
+    )
     
     private val aiService = AIService()
     private val panelSegmentationService = PanelSegmentationService()
@@ -193,7 +207,9 @@ class MangaAnalysisViewModel : ViewModel() {
     }
     
     fun updateAIConfig(config: AIConfig) {
-        _uiState.value = _uiState.value.copy(aiConfig = config)
+        viewModelScope.launch {
+            preferencesRepository.saveAIConfig(config)
+        }
     }
     
     fun toggleSettings() {

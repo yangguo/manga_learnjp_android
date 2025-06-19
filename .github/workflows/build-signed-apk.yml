@@ -11,6 +11,11 @@ on:
         required: true
         default: '1.0.0'
 
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+
 jobs:
   build-signed:
     runs-on: ubuntu-latest

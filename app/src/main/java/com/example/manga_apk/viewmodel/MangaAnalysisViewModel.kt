@@ -54,6 +54,17 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     private val aiService = AIService()
     private val panelSegmentationService = PanelSegmentationService()
     
+    init {
+        println("ViewModel: MangaAnalysisViewModel initialized")
+        viewModelScope.launch {
+            val testResult = aiService.testNetworkConnection()
+            println("ViewModel: Network test result: ${testResult.isSuccess}")
+            if (testResult.isFailure) {
+                println("ViewModel: Network test error: ${testResult.exceptionOrNull()?.message}")
+            }
+        }
+    }
+    
     fun setMode(mode: AnalysisMode) {
         _uiState.value = _uiState.value.copy(currentMode = mode)
         
@@ -268,7 +279,38 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun testAnalysis() {
-        println("Running test analysis")
+        println("ViewModel: Running test analysis")
+        val debugInfo = buildString {
+            appendLine("=== DEBUG INFO ===")
+            appendLine("Provider: ${_uiState.value.aiConfig.provider}")
+            appendLine("API Key: ${_uiState.value.aiConfig.apiKey.take(10)}... (${_uiState.value.aiConfig.apiKey.length} chars)")
+            
+            // Show the model that will actually be used
+            when (_uiState.value.aiConfig.provider) {
+                AIProvider.OPENAI -> {
+                    appendLine("Vision Model: ${_uiState.value.aiConfig.visionModel}")
+                }
+                AIProvider.GEMINI -> {
+                    appendLine("Model: gemini-1.5-pro (fixed)")
+                }
+                AIProvider.CUSTOM -> {
+                    val modelToUse = if (_uiState.value.aiConfig.customModel.isNotEmpty()) {
+                        _uiState.value.aiConfig.customModel
+                    } else {
+                        _uiState.value.aiConfig.visionModel
+                    }
+                    appendLine("Custom Model: $modelToUse")
+                    appendLine("Custom Endpoint: ${_uiState.value.aiConfig.customEndpoint}")
+                }
+            }
+            
+            appendLine("Image: ${_uiState.value.selectedImage != null}")
+            if (_uiState.value.selectedImage != null) {
+                appendLine("Image Size: ${_uiState.value.selectedImage!!.width}x${_uiState.value.selectedImage!!.height}")
+            }
+            appendLine("==================")
+        }
+        
         // Create a test analysis to verify the UI is working
         val testAnalysis = TextAnalysis(
             originalText = "こんにちは",
@@ -290,7 +332,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                     difficulty = "beginner"
                 )
             ),
-            translation = "Hello",
+            translation = "Hello\n\n$debugInfo",
             context = "This is a test analysis to verify the UI is working properly."
         )
         
@@ -303,16 +345,59 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun analyzeWithFallback() {
-        println("Analyze with fallback called")
+        println("ViewModel: === ANALYZE WITH FALLBACK CALLED ===")
         val currentConfig = _uiState.value.aiConfig
+        val selectedImage = _uiState.value.selectedImage
         
-        // If no API key, run test analysis instead
-        if (currentConfig.apiKey.isEmpty()) {
-            println("No API key configured, running test analysis")
-            testAnalysis()
-        } else {
-            println("API key configured, running real analysis")
-            analyzeFullImage()
+        // Show debug info in UI error message temporarily
+        val debugInfo = "Debug: Provider=${currentConfig.provider}, APIKey=${currentConfig.apiKey.isNotEmpty()}, Image=${selectedImage != null}"
+        _uiState.value = _uiState.value.copy(error = debugInfo)
+        
+        println("ViewModel: Current config - Provider: ${currentConfig.provider}")
+        println("ViewModel: API key present: ${currentConfig.apiKey.isNotEmpty()}")
+        println("ViewModel: API key length: ${currentConfig.apiKey.length}")
+        
+        // Show which model will be used based on provider
+        when (currentConfig.provider) {
+            AIProvider.OPENAI -> {
+                println("ViewModel: Will use OpenAI vision model: ${currentConfig.visionModel}")
+            }
+            AIProvider.GEMINI -> {
+                println("ViewModel: Will use Gemini 1.5 Pro model (fixed)")
+            }
+            AIProvider.CUSTOM -> {
+                val modelToUse = if (currentConfig.customModel.isNotEmpty()) {
+                    currentConfig.customModel
+                } else {
+                    currentConfig.visionModel
+                }
+                println("ViewModel: Will use custom model: $modelToUse")
+                println("ViewModel: Custom endpoint: ${currentConfig.customEndpoint}")
+            }
+        }
+        println("ViewModel: Selected image: ${selectedImage != null}")
+        
+        if (selectedImage != null) {
+            println("ViewModel: Image size: ${selectedImage.width}x${selectedImage.height}")
+            println("ViewModel: Image config: ${selectedImage.config}")
+        }
+        
+        println("ViewModel: Current processing state: ${_uiState.value.isProcessing}")
+        
+        // Force a network test first
+        viewModelScope.launch {
+            println("ViewModel: Starting network test before analysis")
+            val networkTest = aiService.testNetworkConnection()
+            println("ViewModel: Network test result: ${networkTest.isSuccess}")
+            
+            // If no API key, run test analysis instead
+            if (currentConfig.apiKey.isEmpty()) {
+                println("ViewModel: No API key configured, running test analysis")
+                testAnalysis()
+            } else {
+                println("ViewModel: API key configured, running real analysis")
+                analyzeFullImage()
+            }
         }
     }
 }

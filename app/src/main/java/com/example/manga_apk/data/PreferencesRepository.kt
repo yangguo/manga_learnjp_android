@@ -28,7 +28,7 @@ class PreferencesRepository(private val context: Context) {
     
     val aiConfigFlow: Flow<AIConfig> = context.dataStore.data
         .map { preferences ->
-            AIConfig(
+            val config = AIConfig(
                 provider = try {
                     AIProvider.valueOf(
                         preferences[AI_PROVIDER_KEY] ?: AIProvider.OPENAI.name
@@ -40,11 +40,13 @@ class PreferencesRepository(private val context: Context) {
                 customEndpoint = preferences[CUSTOM_ENDPOINT_KEY] ?: "",
                 customModel = preferences[CUSTOM_MODEL_KEY] ?: "",
                 textModel = preferences[TEXT_MODEL_KEY] ?: "gpt-4-turbo",
-                visionModel = preferences[VISION_MODEL_KEY] ?: "gpt-4-vision-preview",
+                visionModel = preferences[VISION_MODEL_KEY] ?: "gpt-4o",
                 includeGrammar = preferences[INCLUDE_GRAMMAR_KEY] ?: true,
                 includeVocabulary = preferences[INCLUDE_VOCABULARY_KEY] ?: true,
                 includeTranslation = preferences[INCLUDE_TRANSLATION_KEY] ?: true
             )
+            println("PreferencesRepository: Loaded AI config - Provider: ${config.provider}, API key length: ${config.apiKey.length}, Vision model: ${config.visionModel}")
+            config
         }
     
     suspend fun saveAIConfig(config: AIConfig) {

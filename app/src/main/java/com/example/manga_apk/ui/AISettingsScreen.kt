@@ -147,29 +147,51 @@ fun AISettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    if (currentConfig.provider == AIProvider.CUSTOM) {
-                        OutlinedTextField(
-                            value = currentConfig.customEndpoint,
-                            onValueChange = { newUrl ->
-                                currentConfig = currentConfig.copy(customEndpoint = newUrl)
-                                onConfigUpdate(currentConfig)
-                            },
-                            label = { Text("Base URL") },
-                            placeholder = { Text("https://api.example.com/v1") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        OutlinedTextField(
-                            value = currentConfig.customModel,
-                            onValueChange = { newModel ->
-                                currentConfig = currentConfig.copy(customModel = newModel)
-                                onConfigUpdate(currentConfig)
-                            },
-                            label = { Text("Model Name") },
-                            placeholder = { Text("gpt-4-vision-preview") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    // Model Configuration (show for all providers)
+                    when (currentConfig.provider) {
+                        AIProvider.OPENAI -> {
+                            OutlinedTextField(
+                                value = currentConfig.visionModel,
+                                onValueChange = { newModel ->
+                                    currentConfig = currentConfig.copy(visionModel = newModel)
+                                    onConfigUpdate(currentConfig)
+                                },
+                                label = { Text("Vision Model") },
+                                placeholder = { Text("gpt-4o") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        AIProvider.GEMINI -> {
+                            Text(
+                                text = "Using Gemini 1.5 Pro Vision model",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        AIProvider.CUSTOM -> {
+                            OutlinedTextField(
+                                value = currentConfig.customEndpoint,
+                                onValueChange = { newUrl ->
+                                    currentConfig = currentConfig.copy(customEndpoint = newUrl)
+                                    onConfigUpdate(currentConfig)
+                                },
+                                label = { Text("Base URL") },
+                                placeholder = { Text("https://api.example.com/v1") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            OutlinedTextField(
+                                value = currentConfig.customModel,
+                                onValueChange = { newModel ->
+                                    currentConfig = currentConfig.copy(customModel = newModel)
+                                    onConfigUpdate(currentConfig)
+                                },
+                                label = { Text("Model Name") },
+                                placeholder = { Text("gpt-4o") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }

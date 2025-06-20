@@ -27,6 +27,29 @@ class AIService {
     
     init {
         println("AIService: Initialized with client: ${client.javaClass.simpleName}")
+        println("AIService: Client timeouts - Connect: ${client.connectTimeoutMillis}, Read: ${client.readTimeoutMillis}, Write: ${client.writeTimeoutMillis}")
+    }
+    
+    suspend fun testNetworkConnection(): Result<String> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            println("AIService: Testing network connection to httpbin.org")
+            val request = Request.Builder()
+                .url("https://httpbin.org/get")
+                .build()
+            
+            val response = client.newCall(request).execute()
+            println("AIService: Test request completed with status: ${response.code}")
+            
+            if (response.isSuccessful) {
+                Result.success("Network connection test successful")
+            } else {
+                Result.failure(Exception("Network test failed with status: ${response.code}"))
+            }
+        } catch (e: Exception) {
+            println("AIService: Network test failed: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
     
     suspend fun analyzeImage(
@@ -77,8 +100,12 @@ class AIService {
         val base64Image = bitmapToBase64(bitmap)
         println("AIService: Image converted to base64, length: ${base64Image.length}")
         
+        // Use the visionModel for OpenAI provider
+        val modelToUse = config.visionModel
+        println("AIService: Using OpenAI model: $modelToUse")
+        
         val requestBody = JsonObject().apply {
-            addProperty("model", config.visionModel)
+            addProperty("model", modelToUse)
             add("messages", gson.toJsonTree(listOf(
                 mapOf(
                     "role" to "user",
@@ -95,7 +122,7 @@ class AIService {
         }
         
         println("AIService: Request body prepared")
-        println("AIService: Using model: ${config.visionModel}")
+        println("AIService: Using model: $modelToUse")
         
         val request = Request.Builder()
             .url("https://api.openai.com/v1/chat/completions")
@@ -193,8 +220,16 @@ class AIService {
     ): Result<TextAnalysis> {
         val base64Image = bitmapToBase64(bitmap)
         
+        // Use customModel for custom API provider
+        val modelToUse = if (config.customModel.isNotEmpty()) {
+            config.customModel
+        } else {
+            config.visionModel // fallback to visionModel if customModel is empty
+        }
+        println("AIService: Using custom API model: $modelToUse")
+        
         val requestBody = JsonObject().apply {
-            addProperty("model", config.customModel)
+            addProperty("model", modelToUse)
             add("messages", gson.toJsonTree(listOf(
                 mapOf(
                     "role" to "user",

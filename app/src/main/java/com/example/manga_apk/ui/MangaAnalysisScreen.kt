@@ -614,7 +614,9 @@ fun SimpleAnalysisSection(
             ) {
                 Button(
                     onClick = {
-                        println("Analyze Full Image button clicked!")
+                        println("UI: Analyze Full Image button clicked!")
+                        println("UI: Image present: ${selectedImage != null}")
+                        println("UI: Processing state: $isProcessing")
                         onAnalyze()
                     },
                     modifier = Modifier.fillMaxWidth(),

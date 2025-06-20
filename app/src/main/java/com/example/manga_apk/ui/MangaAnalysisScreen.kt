@@ -80,8 +80,7 @@ fun MangaAnalysisScreen(
                     onImageSelect = { imagePickerLauncher.launch("image/*") },
                     isProcessing = uiState.isProcessing,
                     onQuickAnalysis = { 
-                        viewModel.setMode(AnalysisMode.SIMPLE_ANALYSIS)
-                        viewModel.analyzeFullImage() 
+                        viewModel.quickAnalysis()
                     },
                     onPanelAnalysis = { viewModel.setMode(AnalysisMode.PANEL_ANALYSIS) },
                     onReadingMode = { viewModel.setMode(AnalysisMode.READING_MODE) }
@@ -264,6 +263,7 @@ fun UploadSection(
                 Button(
                     onClick = onQuickAnalysis,
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = !isProcessing,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -596,7 +596,18 @@ fun SimpleAnalysisSection(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-        } else if (analysis == null && !isProcessing) {
+        } else if (isProcessing) {
+            Card {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Analyzing image...")
+                }
+            }
+        } else if (analysis == null) {
             Button(
                 onClick = onAnalyze,
                 modifier = Modifier.fillMaxWidth()
@@ -609,18 +620,7 @@ fun SimpleAnalysisSection(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Analyze Full Image")
             }
-        } else if (isProcessing) {
-            Card {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Analyzing image...")
-                }
-            }
-        } else if (analysis != null) {
+        } else {
             AnalysisResultCard(analysis = analysis)
             
             Button(

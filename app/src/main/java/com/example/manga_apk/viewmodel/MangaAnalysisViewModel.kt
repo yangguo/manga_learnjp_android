@@ -166,15 +166,31 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     fun analyzeFullImage() {
         val bitmap = _uiState.value.selectedImage ?: return
+        val currentConfig = _uiState.value.aiConfig
+        
+        println("Starting full image analysis - Provider: ${currentConfig.provider}, API Key present: ${currentConfig.apiKey.isNotEmpty()}")
+        
+        // Validate configuration before proceeding
+        if (currentConfig.apiKey.isEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                error = "API key is required. Please configure your AI settings first."
+            )
+            return
+        }
         
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isProcessing = true)
+            _uiState.value = _uiState.value.copy(
+                isProcessing = true,
+                error = null
+            )
             
             try {
-                val result = aiService.analyzeImage(bitmap, _uiState.value.aiConfig)
+                println("Calling AI service for image analysis")
+                val result = aiService.analyzeImage(bitmap, currentConfig)
                 
                 result.fold(
                     onSuccess = { analysis ->
+                        println("Analysis successful: ${analysis.originalText.take(50)}...")
                         _uiState.value = _uiState.value.copy(
                             overallAnalysis = analysis,
                             isProcessing = false,
@@ -182,17 +198,19 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                         )
                     },
                     onFailure = { error ->
+                        println("Analysis failed: ${error.message}")
                         _uiState.value = _uiState.value.copy(
                             isProcessing = false,
-                            error = "Analysis failed: ${error.message}"
+                            error = "Analysis failed: ${error.message ?: "Unknown error"}"
                         )
                     }
                 )
                 
             } catch (e: Exception) {
+                println("Exception during analysis: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
-                    error = "Image analysis failed: ${e.message}"
+                    error = "Image analysis failed: ${e.message ?: "Unknown error"}"
                 )
             }
         }
@@ -220,5 +238,46 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+    
+    fun quickAnalysis() {
+        println("Quick analysis triggered - current mode: ${_uiState.value.currentMode}")
+        _uiState.value = _uiState.value.copy(currentMode = AnalysisMode.SIMPLE_ANALYSIS)
+        println("Mode set to SIMPLE_ANALYSIS")
+        analyzeFullImage()
+    }
+    
+    fun testAnalysis() {
+        // Create a test analysis to verify the UI is working
+        val testAnalysis = TextAnalysis(
+            originalText = "こんにちは",
+            vocabulary = listOf(
+                VocabularyItem(
+                    word = "こんにちは",
+                    reading = "こんにちは", 
+                    meaning = "Hello",
+                    partOfSpeech = "Greeting",
+                    jlptLevel = "N5",
+                    difficulty = 1
+                )
+            ),
+            grammarPatterns = listOf(
+                GrammarPattern(
+                    pattern = "Greeting phrase",
+                    explanation = "Basic greeting in Japanese",
+                    example = "こんにちは",
+                    difficulty = "beginner"
+                )
+            ),
+            translation = "Hello",
+            context = "This is a test analysis to verify the UI is working properly."
+        )
+        
+        _uiState.value = _uiState.value.copy(
+            currentMode = AnalysisMode.SIMPLE_ANALYSIS,
+            overallAnalysis = testAnalysis,
+            isProcessing = false,
+            error = null
+        )
     }
 }

@@ -22,6 +22,13 @@ class AIService {
         config: AIConfig
     ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
         try {
+            // Validate configuration first
+            if (config.apiKey.isEmpty()) {
+                return@withContext Result.failure(
+                    IllegalArgumentException("API key is required")
+                )
+            }
+            
             when (config.provider) {
                 AIProvider.OPENAI -> analyzeWithOpenAI(bitmap, config)
                 AIProvider.GEMINI -> analyzeWithGemini(bitmap, config)
@@ -68,10 +75,11 @@ class AIService {
                 val responseBody = response.body?.string()
                 parseOpenAIResponse(responseBody)
             } else {
-                Result.failure(IOException("API call failed: ${response.code}"))
+                val errorBody = response.body?.string()
+                Result.failure(IOException("OpenAI API call failed: ${response.code} - $errorBody"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(IOException("Network error: ${e.message}", e))
         }
     }
     
@@ -109,10 +117,11 @@ class AIService {
                 val responseBody = response.body?.string()
                 parseGeminiResponse(responseBody)
             } else {
-                Result.failure(IOException("API call failed: ${response.code}"))
+                val errorBody = response.body?.string()
+                Result.failure(IOException("Gemini API call failed: ${response.code} - $errorBody"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(IOException("Network error: ${e.message}", e))
         }
     }
     
@@ -154,10 +163,11 @@ class AIService {
                 val responseBody = response.body?.string()
                 parseOpenAIResponse(responseBody) // Use OpenAI format parser
             } else {
-                Result.failure(IOException("API call failed: ${response.code}"))
+                val errorBody = response.body?.string()
+                Result.failure(IOException("Custom API call failed: ${response.code} - $errorBody"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(IOException("Network error: ${e.message}", e))
         }
     }
     

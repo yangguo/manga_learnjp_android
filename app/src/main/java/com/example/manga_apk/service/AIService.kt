@@ -59,31 +59,56 @@ class AIService {
         try {
             println("AIService: Starting analyzeImage")
             println("AIService: Bitmap size: ${bitmap.width}x${bitmap.height}")
-            println("AIService: Provider: ${config.provider}")
-            println("AIService: API key present: ${config.apiKey.isNotEmpty()}")
+            println("AIService: Primary Provider: ${config.primaryProvider}")
+            println("AIService: Fallback enabled: ${config.enableFallback}")
             
-            // Validate configuration first
-            if (config.apiKey.isEmpty()) {
-                println("AIService: API key is empty, returning failure")
+            val providersToTry = config.getConfiguredProviders()
+            println("AIService: Configured providers to try: $providersToTry")
+            
+            if (providersToTry.isEmpty()) {
+                println("AIService: No configured providers found")
                 return@withContext Result.failure(
-                    IllegalArgumentException("API key is required")
+                    IllegalArgumentException("No API providers are configured")
                 )
             }
             
-            when (config.provider) {
-                AIProvider.OPENAI -> {
-                    println("AIService: Using OpenAI provider")
-                    analyzeWithOpenAI(bitmap, config)
+            var lastException: Exception? = null
+            
+            for (provider in providersToTry) {
+                println("AIService: Trying provider: $provider")
+                
+                val result = when (provider) {
+                    AIProvider.OPENAI -> {
+                        println("AIService: Using OpenAI provider")
+                        analyzeWithOpenAI(bitmap, config.openaiConfig)
+                    }
+                    AIProvider.GEMINI -> {
+                        println("AIService: Using Gemini provider")
+                        analyzeWithGemini(bitmap, config.geminiConfig)
+                    }
+                    AIProvider.CUSTOM -> {
+                        println("AIService: Using Custom provider")
+                        analyzeWithCustomAPI(bitmap, config.customConfig)
+                    }
                 }
-                AIProvider.GEMINI -> {
-                    println("AIService: Using Gemini provider")
-                    analyzeWithGemini(bitmap, config)
-                }
-                AIProvider.CUSTOM -> {
-                    println("AIService: Using Custom provider")
-                    analyzeWithCustomAPI(bitmap, config)
+                
+                if (result.isSuccess) {
+                    println("AIService: Successfully analyzed with provider: $provider")
+                    return@withContext result
+                } else {
+                    lastException = result.exceptionOrNull() as? Exception
+                    println("AIService: Provider $provider failed: ${lastException?.message}")
+                    
+                    // If fallback is disabled and this is the primary provider, return the failure
+                    if (!config.enableFallback && provider == config.primaryProvider) {
+                        println("AIService: Fallback disabled, returning failure from primary provider")
+                        return@withContext result
+                    }
                 }
             }
+            
+            println("AIService: All providers failed")
+            Result.failure(lastException ?: Exception("All configured providers failed"))
         } catch (e: Exception) {
             println("AIService: Exception in analyzeImage: ${e.message}")
             e.printStackTrace()
@@ -93,7 +118,7 @@ class AIService {
     
     private suspend fun analyzeWithOpenAI(
         bitmap: Bitmap,
-        config: AIConfig
+        config: OpenAIConfig
     ): Result<TextAnalysis> {
         println("AIService: Starting OpenAI analysis")
         
@@ -174,7 +199,7 @@ class AIService {
     
     private suspend fun analyzeWithGemini(
         bitmap: Bitmap,
-        config: AIConfig
+        config: GeminiConfig
     ): Result<TextAnalysis> {
         val base64Image = bitmapToBase64(bitmap)
         
@@ -195,7 +220,7 @@ class AIService {
         }
         
         val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${config.apiKey}")
+            .url("https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}")
             .addHeader("Content-Type", "application/json")
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
             .build()
@@ -216,16 +241,12 @@ class AIService {
     
     private suspend fun analyzeWithCustomAPI(
         bitmap: Bitmap,
-        config: AIConfig
+        config: CustomAPIConfig
     ): Result<TextAnalysis> {
         val base64Image = bitmapToBase64(bitmap)
         
-        // Use customModel for custom API provider
-        val modelToUse = if (config.customModel.isNotEmpty()) {
-            config.customModel
-        } else {
-            config.visionModel // fallback to visionModel if customModel is empty
-        }
+        // Use the model from custom config
+        val modelToUse = config.model
         println("AIService: Using custom API model: $modelToUse")
         
         val requestBody = JsonObject().apply {
@@ -246,7 +267,7 @@ class AIService {
         }
         
         val requestBuilder = Request.Builder()
-            .url(config.customEndpoint)
+            .url(config.endpoint)
             .addHeader("Content-Type", "application/json")
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
         

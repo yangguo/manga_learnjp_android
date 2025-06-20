@@ -196,13 +196,14 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         
         val currentConfig = _uiState.value.aiConfig
         
-        println("Starting full image analysis - Provider: ${currentConfig.provider}, API Key present: ${currentConfig.apiKey.isNotEmpty()}")
+        println("Starting full image analysis - Primary Provider: ${currentConfig.primaryProvider}, Configured providers: ${currentConfig.getConfiguredProviders()}")
         
         // Validate configuration before proceeding
-        if (currentConfig.apiKey.isEmpty()) {
-            println("API key is empty")
+        val configuredProviders = currentConfig.getConfiguredProviders()
+        if (configuredProviders.isEmpty()) {
+            println("No providers configured")
             _uiState.value = _uiState.value.copy(
-                error = "API key is required. Please configure your AI settings first."
+                error = "No AI providers are configured. Please configure at least one provider in settings."
             )
             return
         }
@@ -280,28 +281,31 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     fun testAnalysis() {
         println("ViewModel: Running test analysis")
+        val config = _uiState.value.aiConfig
         val debugInfo = buildString {
             appendLine("=== DEBUG INFO ===")
-            appendLine("Provider: ${_uiState.value.aiConfig.provider}")
-            appendLine("API Key: ${_uiState.value.aiConfig.apiKey.take(10)}... (${_uiState.value.aiConfig.apiKey.length} chars)")
+            appendLine("Primary Provider: ${config.primaryProvider}")
+            appendLine("Fallback Enabled: ${config.enableFallback}")
             
-            // Show the model that will actually be used
-            when (_uiState.value.aiConfig.provider) {
-                AIProvider.OPENAI -> {
-                    appendLine("Vision Model: ${_uiState.value.aiConfig.visionModel}")
-                }
-                AIProvider.GEMINI -> {
-                    appendLine("Model: gemini-1.5-pro (fixed)")
-                }
-                AIProvider.CUSTOM -> {
-                    val modelToUse = if (_uiState.value.aiConfig.customModel.isNotEmpty()) {
-                        _uiState.value.aiConfig.customModel
-                    } else {
-                        _uiState.value.aiConfig.visionModel
-                    }
-                    appendLine("Custom Model: $modelToUse")
-                    appendLine("Custom Endpoint: ${_uiState.value.aiConfig.customEndpoint}")
-                }
+            // Show configured providers
+            val configuredProviders = config.getConfiguredProviders()
+            appendLine("Configured Providers: $configuredProviders")
+            
+            // Show details for each configured provider
+            if (config.isProviderConfigured(AIProvider.OPENAI)) {
+                appendLine("OpenAI API Key: ${config.openaiConfig.apiKey.take(10)}... (${config.openaiConfig.apiKey.length} chars)")
+                appendLine("OpenAI Vision Model: ${config.openaiConfig.visionModel}")
+            }
+            
+            if (config.isProviderConfigured(AIProvider.GEMINI)) {
+                appendLine("Gemini API Key: ${config.geminiConfig.apiKey.take(10)}... (${config.geminiConfig.apiKey.length} chars)")
+                appendLine("Gemini Model: ${config.geminiConfig.model}")
+            }
+            
+            if (config.isProviderConfigured(AIProvider.CUSTOM)) {
+                appendLine("Custom API Key: ${config.customConfig.apiKey.take(10)}... (${config.customConfig.apiKey.length} chars)")
+                appendLine("Custom Model: ${config.customConfig.model}")
+                appendLine("Custom Endpoint: ${config.customConfig.endpoint}")
             }
             
             appendLine("Image: ${_uiState.value.selectedImage != null}")
@@ -350,29 +354,29 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         val selectedImage = _uiState.value.selectedImage
         
         // Show debug info in UI error message temporarily
-        val debugInfo = "Debug: Provider=${currentConfig.provider}, APIKey=${currentConfig.apiKey.isNotEmpty()}, Image=${selectedImage != null}"
+        val debugInfo = "Debug: Provider=${currentConfig.primaryProvider}, Configured=${currentConfig.getConfiguredProviders().isNotEmpty()}, Image=${selectedImage != null}"
         _uiState.value = _uiState.value.copy(error = debugInfo)
         
-        println("ViewModel: Current config - Provider: ${currentConfig.provider}")
-        println("ViewModel: API key present: ${currentConfig.apiKey.isNotEmpty()}")
-        println("ViewModel: API key length: ${currentConfig.apiKey.length}")
+        println("ViewModel: Current config - Provider: ${currentConfig.primaryProvider}")
+        println("ViewModel: Configured providers: ${currentConfig.getConfiguredProviders()}")
+        println("ViewModel: Fallback enabled: ${currentConfig.enableFallback}")
         
         // Show which model will be used based on provider
-        when (currentConfig.provider) {
+        when (currentConfig.primaryProvider) {
             AIProvider.OPENAI -> {
-                println("ViewModel: Will use OpenAI vision model: ${currentConfig.visionModel}")
+                println("ViewModel: Will use OpenAI vision model: ${currentConfig.openaiConfig.visionModel}")
             }
             AIProvider.GEMINI -> {
                 println("ViewModel: Will use Gemini 1.5 Pro model (fixed)")
             }
             AIProvider.CUSTOM -> {
-                val modelToUse = if (currentConfig.customModel.isNotEmpty()) {
-                    currentConfig.customModel
+                val modelToUse = if (currentConfig.customConfig.model.isNotEmpty()) {
+                    currentConfig.customConfig.model
                 } else {
-                    currentConfig.visionModel
+                    "gpt-4o" // fallback model
                 }
                 println("ViewModel: Will use custom model: $modelToUse")
-                println("ViewModel: Custom endpoint: ${currentConfig.customEndpoint}")
+                println("ViewModel: Custom endpoint: ${currentConfig.customConfig.endpoint}")
             }
         }
         println("ViewModel: Selected image: ${selectedImage != null}")
@@ -390,12 +394,12 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             val networkTest = aiService.testNetworkConnection()
             println("ViewModel: Network test result: ${networkTest.isSuccess}")
             
-            // If no API key, run test analysis instead
-            if (currentConfig.apiKey.isEmpty()) {
-                println("ViewModel: No API key configured, running test analysis")
+            // If no providers configured, run test analysis instead
+            if (currentConfig.getConfiguredProviders().isEmpty()) {
+                println("ViewModel: No providers configured, running test analysis")
                 testAnalysis()
             } else {
-                println("ViewModel: API key configured, running real analysis")
+                println("ViewModel: Providers configured, running real analysis")
                 analyzeFullImage()
             }
         }

@@ -8,17 +8,63 @@ enum class AIProvider(val displayName: String) {
     CUSTOM("Custom OpenAI-Format API")
 }
 
-data class AIConfig(
-    val provider: AIProvider = AIProvider.OPENAI,
+data class OpenAIConfig(
     val apiKey: String = "",
-    val customEndpoint: String = "",
-    val customModel: String = "",
     val textModel: String = "gpt-4-turbo",
-    val visionModel: String = "gpt-4o", // Updated to use the latest vision model
+    val visionModel: String = "gpt-4o"
+)
+
+data class GeminiConfig(
+    val apiKey: String = "",
+    val model: String = "gemini-1.5-pro"
+)
+
+data class CustomAPIConfig(
+    val apiKey: String = "",
+    val endpoint: String = "",
+    val model: String = ""
+)
+
+data class AIConfig(
+    val primaryProvider: AIProvider = AIProvider.OPENAI,
+    val enableFallback: Boolean = false,
+    val openaiConfig: OpenAIConfig = OpenAIConfig(),
+    val geminiConfig: GeminiConfig = GeminiConfig(),
+    val customConfig: CustomAPIConfig = CustomAPIConfig(),
     val includeGrammar: Boolean = true,
     val includeVocabulary: Boolean = true,
     val includeTranslation: Boolean = true
-)
+) {
+    fun getConfiguredProviders(): List<AIProvider> {
+        val providers = mutableListOf<AIProvider>()
+        
+        // Add primary provider first
+        providers.add(primaryProvider)
+        
+        // Add other configured providers if fallback is enabled
+        if (enableFallback) {
+            if (primaryProvider != AIProvider.OPENAI && openaiConfig.apiKey.isNotEmpty()) {
+                providers.add(AIProvider.OPENAI)
+            }
+            if (primaryProvider != AIProvider.GEMINI && geminiConfig.apiKey.isNotEmpty()) {
+                providers.add(AIProvider.GEMINI)
+            }
+            if (primaryProvider != AIProvider.CUSTOM && customConfig.apiKey.isNotEmpty() && customConfig.endpoint.isNotEmpty()) {
+                providers.add(AIProvider.CUSTOM)
+            }
+        }
+        
+        return providers
+    }
+    
+    fun isProviderConfigured(provider: AIProvider): Boolean {
+        return when (provider) {
+            AIProvider.OPENAI -> openaiConfig.apiKey.isNotEmpty()
+            AIProvider.GEMINI -> geminiConfig.apiKey.isNotEmpty()
+            AIProvider.CUSTOM -> customConfig.apiKey.isNotEmpty() && customConfig.endpoint.isNotEmpty()
+        }
+    }
+}
 
 data class VocabularyItem(
     val word: String,

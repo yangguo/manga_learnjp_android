@@ -20,8 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.manga_apk.data.AIConfig
-import com.example.manga_apk.data.AIProvider
+import com.example.manga_apk.data.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,9 +30,11 @@ fun AISettingsScreen(
     onNavigateBack: () -> Unit
 ) {
     var currentConfig by remember { mutableStateOf(aiConfig) }
-    var showApiKey by remember { mutableStateOf(false) }
+    var showOpenAIKey by remember { mutableStateOf(false) }
+    var showGeminiKey by remember { mutableStateOf(false) }
+    var showCustomKey by remember { mutableStateOf(false) }
     
-    // Update currentConfig when aiConfig changes (e.g., when navigating back to screen)
+    // Update currentConfig when aiConfig changes
     LaunchedEffect(aiConfig) {
         currentConfig = aiConfig
     }
@@ -58,16 +59,22 @@ fun AISettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // AI Provider Selection
+            // Primary Provider Selection
             Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "AI Provider",
+                        text = "Primary AI Provider",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
+                    )
+                    
+                    Text(
+                        text = "Select your preferred AI provider. If fallback is enabled, other configured providers will be tried if the primary fails.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
                     Column(
@@ -78,9 +85,9 @@ fun AISettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .selectable(
-                                        selected = currentConfig.provider == provider,
+                                        selected = currentConfig.primaryProvider == provider,
                                         onClick = {
-                                            currentConfig = currentConfig.copy(provider = provider)
+                                            currentConfig = currentConfig.copy(primaryProvider = provider)
                                             onConfigUpdate(currentConfig)
                                         },
                                         role = Role.RadioButton
@@ -89,7 +96,7 @@ fun AISettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
-                                    selected = currentConfig.provider == provider,
+                                    selected = currentConfig.primaryProvider == provider,
                                     onClick = null
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -110,100 +117,161 @@ fun AISettingsScreen(
                 }
             }
             
-            // API Key Configuration
+            // Fallback Settings
             Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "API Configuration",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Enable Fallback",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Try other configured providers if the primary fails",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = currentConfig.enableFallback,
+                            onCheckedChange = { enabled ->
+                                currentConfig = currentConfig.copy(enableFallback = enabled)
+                                onConfigUpdate(currentConfig)
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // OpenAI Configuration
+            ProviderConfigCard(
+                title = "OpenAI Configuration",
+                description = "Configure OpenAI GPT-4 Vision API",
+                apiKey = currentConfig.openaiConfig.apiKey,
+                onApiKeyChange = { newKey ->
+                    currentConfig = currentConfig.copy(
+                        openaiConfig = currentConfig.openaiConfig.copy(apiKey = newKey)
                     )
-                    
+                    onConfigUpdate(currentConfig)
+                },
+                showApiKey = showOpenAIKey,
+                onToggleShowApiKey = { showOpenAIKey = !showOpenAIKey },
+                additionalFields = {
                     OutlinedTextField(
-                        value = currentConfig.apiKey,
-                        onValueChange = { newKey ->
-                            currentConfig = currentConfig.copy(apiKey = newKey)
+                        value = currentConfig.openaiConfig.textModel,
+                        onValueChange = { newModel ->
+                            currentConfig = currentConfig.copy(
+                                openaiConfig = currentConfig.openaiConfig.copy(textModel = newModel)
+                            )
                             onConfigUpdate(currentConfig)
                         },
-                        label = { Text("API Key") },
-                        placeholder = { Text("Enter your ${currentConfig.provider.displayName} API key") },
-                        visualTransformation = if (showApiKey) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { showApiKey = !showApiKey }) {
-                                Icon(
-                                    imageVector = if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (showApiKey) "Hide API key" else "Show API key"
-                                )
-                            }
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        label = { Text("Text Model") },
+                        placeholder = { Text("gpt-4-turbo") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    // Model Configuration (show for all providers)
-                    when (currentConfig.provider) {
-                        AIProvider.OPENAI -> {
-                            OutlinedTextField(
-                                value = currentConfig.visionModel,
-                                onValueChange = { newModel ->
-                                    currentConfig = currentConfig.copy(visionModel = newModel)
-                                    onConfigUpdate(currentConfig)
-                                },
-                                label = { Text("Vision Model") },
-                                placeholder = { Text("gpt-4o") },
-                                modifier = Modifier.fillMaxWidth()
+                    OutlinedTextField(
+                        value = currentConfig.openaiConfig.visionModel,
+                        onValueChange = { newModel ->
+                            currentConfig = currentConfig.copy(
+                                openaiConfig = currentConfig.openaiConfig.copy(visionModel = newModel)
                             )
-                        }
-                        AIProvider.GEMINI -> {
-                            Text(
-                                text = "Using Gemini 1.5 Pro Vision model",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        AIProvider.CUSTOM -> {
-                            OutlinedTextField(
-                                value = currentConfig.customEndpoint,
-                                onValueChange = { newUrl ->
-                                    currentConfig = currentConfig.copy(customEndpoint = newUrl)
-                                    onConfigUpdate(currentConfig)
-                                },
-                                label = { Text("Base URL") },
-                                placeholder = { Text("https://api.example.com/v1") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            
-                            OutlinedTextField(
-                                value = currentConfig.customModel,
-                                onValueChange = { newModel ->
-                                    currentConfig = currentConfig.copy(customModel = newModel)
-                                    onConfigUpdate(currentConfig)
-                                },
-                                label = { Text("Model Name") },
-                                placeholder = { Text("gpt-4o") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
+                            onConfigUpdate(currentConfig)
+                        },
+                        label = { Text("Vision Model") },
+                        placeholder = { Text("gpt-4o") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-            }
+            )
             
-            // Analysis Settings
+            // Gemini Configuration
+            ProviderConfigCard(
+                title = "Google Gemini Configuration",
+                description = "Configure Google Gemini Pro Vision API",
+                apiKey = currentConfig.geminiConfig.apiKey,
+                onApiKeyChange = { newKey ->
+                    currentConfig = currentConfig.copy(
+                        geminiConfig = currentConfig.geminiConfig.copy(apiKey = newKey)
+                    )
+                    onConfigUpdate(currentConfig)
+                },
+                showApiKey = showGeminiKey,
+                onToggleShowApiKey = { showGeminiKey = !showGeminiKey },
+                additionalFields = {
+                    OutlinedTextField(
+                        value = currentConfig.geminiConfig.model,
+                        onValueChange = { newModel ->
+                            currentConfig = currentConfig.copy(
+                                geminiConfig = currentConfig.geminiConfig.copy(model = newModel)
+                            )
+                            onConfigUpdate(currentConfig)
+                        },
+                        label = { Text("Model") },
+                        placeholder = { Text("gemini-1.5-pro") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            )
+            
+            // Custom API Configuration
+            ProviderConfigCard(
+                title = "Custom API Configuration",
+                description = "Configure your own OpenAI-compatible API",
+                apiKey = currentConfig.customConfig.apiKey,
+                onApiKeyChange = { newKey ->
+                    currentConfig = currentConfig.copy(
+                        customConfig = currentConfig.customConfig.copy(apiKey = newKey)
+                    )
+                    onConfigUpdate(currentConfig)
+                },
+                showApiKey = showCustomKey,
+                onToggleShowApiKey = { showCustomKey = !showCustomKey },
+                additionalFields = {
+                    OutlinedTextField(
+                        value = currentConfig.customConfig.endpoint,
+                        onValueChange = { newEndpoint ->
+                            currentConfig = currentConfig.copy(
+                                customConfig = currentConfig.customConfig.copy(endpoint = newEndpoint)
+                            )
+                            onConfigUpdate(currentConfig)
+                        },
+                        label = { Text("API Endpoint") },
+                        placeholder = { Text("https://api.example.com/v1/chat/completions") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    OutlinedTextField(
+                        value = currentConfig.customConfig.model,
+                        onValueChange = { newModel ->
+                            currentConfig = currentConfig.copy(
+                                customConfig = currentConfig.customConfig.copy(model = newModel)
+                            )
+                            onConfigUpdate(currentConfig)
+                        },
+                        label = { Text("Model Name") },
+                        placeholder = { Text("gpt-4o") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            )
+            
+            // Analysis Options
             Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Analysis Settings",
+                        text = "Analysis Options",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -213,21 +281,11 @@ fun AISettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Include Grammar Analysis",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Text(
-                                text = "Analyze grammar patterns in text",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text("Include Grammar Analysis")
                         Switch(
                             checked = currentConfig.includeGrammar,
-                            onCheckedChange = { checked ->
-                                currentConfig = currentConfig.copy(includeGrammar = checked)
+                            onCheckedChange = { enabled ->
+                                currentConfig = currentConfig.copy(includeGrammar = enabled)
                                 onConfigUpdate(currentConfig)
                             }
                         )
@@ -238,21 +296,11 @@ fun AISettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Include Vocabulary Breakdown",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Text(
-                                text = "Provide detailed word analysis",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text("Include Vocabulary Analysis")
                         Switch(
                             checked = currentConfig.includeVocabulary,
-                            onCheckedChange = { checked ->
-                                currentConfig = currentConfig.copy(includeVocabulary = checked)
+                            onCheckedChange = { enabled ->
+                                currentConfig = currentConfig.copy(includeVocabulary = enabled)
                                 onConfigUpdate(currentConfig)
                             }
                         )
@@ -263,21 +311,11 @@ fun AISettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Include Translation",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Text(
-                                text = "Provide English translation",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text("Include Translation")
                         Switch(
                             checked = currentConfig.includeTranslation,
-                            onCheckedChange = { checked ->
-                                currentConfig = currentConfig.copy(includeTranslation = checked)
+                            onCheckedChange = { enabled ->
+                                currentConfig = currentConfig.copy(includeTranslation = enabled)
                                 onConfigUpdate(currentConfig)
                             }
                         )
@@ -285,29 +323,80 @@ fun AISettingsScreen(
                 }
             }
             
-            // Help Text
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
+            // Help Section
+            Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = "How to get API keys:",
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
+                    
                     Text(
                         text = "• OpenAI: Visit platform.openai.com and create an API key\n" +
                                 "• Google Gemini: Visit ai.google.dev and get your API key\n" +
-                                "• Custom: Use any OpenAI-compatible API endpoint",
-                        style = MaterialTheme.typography.bodySmall
+                                "• Custom API: Use any OpenAI-compatible API endpoint",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ProviderConfigCard(
+    title: String,
+    description: String,
+    apiKey: String,
+    onApiKeyChange: (String) -> Unit,
+    showApiKey: Boolean,
+    onToggleShowApiKey: () -> Unit,
+    additionalFields: @Composable ColumnScope.() -> Unit = {}
+) {
+    Card {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = onApiKeyChange,
+                label = { Text("API Key") },
+                placeholder = { Text("Enter your API key") },
+                visualTransformation = if (showApiKey) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = onToggleShowApiKey) {
+                        Icon(
+                            imageVector = if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (showApiKey) "Hide API key" else "Show API key"
+                        )
+                    }
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            additionalFields()
         }
     }
 }

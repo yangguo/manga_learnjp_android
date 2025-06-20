@@ -165,13 +165,22 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun analyzeFullImage() {
-        val bitmap = _uiState.value.selectedImage ?: return
+        val bitmap = _uiState.value.selectedImage
+        if (bitmap == null) {
+            println("No image selected for analysis")
+            _uiState.value = _uiState.value.copy(
+                error = "No image selected. Please upload an image first."
+            )
+            return
+        }
+        
         val currentConfig = _uiState.value.aiConfig
         
         println("Starting full image analysis - Provider: ${currentConfig.provider}, API Key present: ${currentConfig.apiKey.isNotEmpty()}")
         
         // Validate configuration before proceeding
         if (currentConfig.apiKey.isEmpty()) {
+            println("API key is empty")
             _uiState.value = _uiState.value.copy(
                 error = "API key is required. Please configure your AI settings first."
             )
@@ -179,6 +188,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         }
         
         viewModelScope.launch {
+            println("Setting processing state to true")
             _uiState.value = _uiState.value.copy(
                 isProcessing = true,
                 error = null
@@ -208,6 +218,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                 
             } catch (e: Exception) {
                 println("Exception during analysis: ${e.message}")
+                e.printStackTrace()
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
                     error = "Image analysis failed: ${e.message ?: "Unknown error"}"
@@ -248,6 +259,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun testAnalysis() {
+        println("Running test analysis")
         // Create a test analysis to verify the UI is working
         val testAnalysis = TextAnalysis(
             originalText = "こんにちは",
@@ -279,5 +291,19 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             isProcessing = false,
             error = null
         )
+    }
+    
+    fun analyzeWithFallback() {
+        println("Analyze with fallback called")
+        val currentConfig = _uiState.value.aiConfig
+        
+        // If no API key, run test analysis instead
+        if (currentConfig.apiKey.isEmpty()) {
+            println("No API key configured, running test analysis")
+            testAnalysis()
+        } else {
+            println("API key configured, running real analysis")
+            analyzeFullImage()
+        }
     }
 }

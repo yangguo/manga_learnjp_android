@@ -100,7 +100,7 @@ fun MangaAnalysisScreen(
                     analysis = uiState.overallAnalysis,
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
-                    onAnalyze = viewModel::analyzeFullImage,
+                    onAnalyze = viewModel::analyzeWithFallback,
                     onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
                 )
             }
@@ -608,17 +608,40 @@ fun SimpleAnalysisSection(
                 }
             }
         } else if (analysis == null) {
-            Button(
-                onClick = onAnalyze,
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.Default.Analytics,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Analyze Full Image")
+                Button(
+                    onClick = {
+                        println("Analyze Full Image button clicked!")
+                        onAnalyze()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isProcessing
+                ) {
+                    Icon(
+                        Icons.Default.Analytics,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Analyze Full Image")
+                }
+                
+                // Debug info card
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Text(
+                        text = "Make sure to configure your AI API key in Settings before analyzing. If no API key is set, a test analysis will be shown.",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             AnalysisResultCard(analysis = analysis)

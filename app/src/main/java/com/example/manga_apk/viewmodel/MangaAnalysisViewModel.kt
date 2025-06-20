@@ -66,9 +66,16 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     fun loadImageFromUri(context: Context, uri: Uri) {
         viewModelScope.launch {
             try {
+                println("ViewModel: Loading image from URI: $uri")
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val bitmap = BitmapFactory.decodeStream(inputStream)
                 inputStream?.close()
+                
+                if (bitmap != null) {
+                    println("ViewModel: Image loaded successfully - Size: ${bitmap.width}x${bitmap.height}, Config: ${bitmap.config}")
+                } else {
+                    println("ViewModel: Failed to decode bitmap from stream")
+                }
                 
                 _uiState.value = _uiState.value.copy(
                     selectedImage = bitmap,
@@ -83,6 +90,8 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                 }
                 
             } catch (e: Exception) {
+                println("ViewModel: Exception loading image: ${e.message}")
+                e.printStackTrace()
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to load image: ${e.message}"
                 )

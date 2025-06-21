@@ -38,18 +38,20 @@ data class AIConfig(
     fun getConfiguredProviders(): List<AIProvider> {
         val providers = mutableListOf<AIProvider>()
         
-        // Add primary provider first
-        providers.add(primaryProvider)
+        // Add primary provider first, but only if it's configured
+        if (isProviderConfigured(primaryProvider)) {
+            providers.add(primaryProvider)
+        }
         
         // Add other configured providers if fallback is enabled
         if (enableFallback) {
-            if (primaryProvider != AIProvider.OPENAI && openaiConfig.apiKey.isNotEmpty()) {
+            if (primaryProvider != AIProvider.OPENAI && isProviderConfigured(AIProvider.OPENAI)) {
                 providers.add(AIProvider.OPENAI)
             }
-            if (primaryProvider != AIProvider.GEMINI && geminiConfig.apiKey.isNotEmpty()) {
+            if (primaryProvider != AIProvider.GEMINI && isProviderConfigured(AIProvider.GEMINI)) {
                 providers.add(AIProvider.GEMINI)
             }
-            if (primaryProvider != AIProvider.CUSTOM && customConfig.apiKey.isNotEmpty() && customConfig.endpoint.isNotEmpty()) {
+            if (primaryProvider != AIProvider.CUSTOM && isProviderConfigured(AIProvider.CUSTOM)) {
                 providers.add(AIProvider.CUSTOM)
             }
         }

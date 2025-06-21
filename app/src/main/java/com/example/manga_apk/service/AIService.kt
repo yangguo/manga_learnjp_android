@@ -29,6 +29,10 @@ class AIService {
     init {
         Logger.i(Logger.Category.AI_SERVICE, "Initialized with client: ${client.javaClass.simpleName}")
         Logger.i(Logger.Category.AI_SERVICE, "Client timeouts - Connect: ${client.connectTimeoutMillis}ms, Read: ${client.readTimeoutMillis}ms, Write: ${client.writeTimeoutMillis}ms")
+        
+        // Add debug logging to check if Logger is working
+        println("AIService: Logger initialization test")
+        android.util.Log.d("MangaLearnJP", "AIService: Direct Android Log test")
     }
     
     suspend fun testNetworkConnection(): Boolean = withContext(Dispatchers.IO) {
@@ -58,6 +62,10 @@ class AIService {
         config: AIConfig
     ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
         try {
+            // Add debug prints to trace execution
+            println("AIService: Starting analyzeImage")
+            android.util.Log.d("MangaLearnJP", "AIService: Starting analyzeImage with bitmap ${bitmap.width}x${bitmap.height}")
+            
             Logger.logFunctionEntry("AIService", "analyzeImage", mapOf(
                 "bitmapSize" to "${bitmap.width}x${bitmap.height}",
                 "primaryProvider" to config.primaryProvider.toString(),
@@ -66,11 +74,14 @@ class AIService {
             
             val providersToTry = config.getConfiguredProviders()
             Logger.i(Logger.Category.AI_SERVICE, "Configured providers to try: $providersToTry")
+            println("AIService: Providers to try: $providersToTry")
             
             if (providersToTry.isEmpty()) {
-                Logger.logError("analyzeImage", "No configured providers found")
+                val errorMsg = "No API providers are configured"
+                Logger.logError("analyzeImage", errorMsg)
+                println("AIService: ERROR - $errorMsg")
                 return@withContext Result.failure(
-                    IllegalArgumentException("No API providers are configured")
+                    IllegalArgumentException(errorMsg)
                 )
             }
             
@@ -78,41 +89,53 @@ class AIService {
             
             for (provider in providersToTry) {
                 Logger.i(Logger.Category.AI_SERVICE, "Attempting analysis with provider: $provider")
+                println("AIService: Attempting analysis with provider: $provider")
+                android.util.Log.d("MangaLearnJP", "AIService: Attempting analysis with provider: $provider")
                 
                 val result = when (provider) {
                     AIProvider.OPENAI -> {
                         Logger.i(Logger.Category.AI_SERVICE, "Using OpenAI provider")
+                        println("AIService: Using OpenAI provider")
                         analyzeWithOpenAI(bitmap, config.openaiConfig)
                     }
                     AIProvider.GEMINI -> {
                         Logger.i(Logger.Category.AI_SERVICE, "Using Gemini provider")
+                        println("AIService: Using Gemini provider")
                         analyzeWithGemini(bitmap, config.geminiConfig)
                     }
                     AIProvider.CUSTOM -> {
                         Logger.i(Logger.Category.AI_SERVICE, "Using Custom provider")
+                        println("AIService: Using Custom provider")
                         analyzeWithCustomAPI(bitmap, config.customConfig)
                     }
                 }
                 
                 if (result.isSuccess) {
                     Logger.i(Logger.Category.AI_SERVICE, "Analysis successful with provider: $provider")
+                    println("AIService: Analysis successful with provider: $provider")
                     return@withContext result
                 } else {
                     lastException = result.exceptionOrNull() as? Exception
                     Logger.logError("analyzeImage", lastException ?: Exception("Analysis failed with provider: $provider"))
+                    println("AIService: Analysis failed with provider: $provider - ${lastException?.message}")
                     
                     // If fallback is disabled and this is the primary provider, return the failure
                     if (!config.enableFallback && provider == config.primaryProvider) {
                         Logger.i(Logger.Category.AI_SERVICE, "Fallback disabled, returning failure from primary provider")
+                        println("AIService: Fallback disabled, returning failure from primary provider")
                         return@withContext result
                     }
                 }
             }
             
             Logger.logError("analyzeImage", lastException ?: Exception("All providers failed"))
+            println("AIService: All providers failed - ${lastException?.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: All providers failed", lastException)
             Result.failure(lastException ?: Exception("All configured providers failed"))
         } catch (e: Exception) {
             Logger.logError("analyzeImage", e)
+            println("AIService: Exception in analyzeImage - ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: Exception in analyzeImage", e)
             Result.failure(e)
         }
     }
@@ -121,10 +144,20 @@ class AIService {
         bitmap: Bitmap,
         config: OpenAIConfig
     ): Result<TextAnalysis> {
+        println("AIService: Starting analyzeWithOpenAI")
+        android.util.Log.d("MangaLearnJP", "AIService: analyzeWithOpenAI - API key length: ${config.apiKey.length}")
+        
         Logger.logFunctionEntry("AIService", "analyzeWithOpenAI", mapOf(
             "bitmapSize" to "${bitmap.width}x${bitmap.height}",
             "visionModel" to config.visionModel
         ))
+        
+        if (config.apiKey.isEmpty()) {
+            val errorMsg = "OpenAI API key is not configured"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
         
         val base64Image = bitmapToBase64(bitmap)
         Logger.i(Logger.Category.IMAGE, "Image converted to base64, length: ${base64Image.length}")
@@ -167,9 +200,15 @@ class AIService {
             Logger.i(Logger.Category.NETWORK, "Request URL: https://api.openai.com/v1/chat/completions")
             Logger.i(Logger.Category.NETWORK, "Request headers: Authorization=Bearer [REDACTED], Content-Type=application/json")
             
+            println("AIService: Making HTTP request to OpenAI API")
+            android.util.Log.d("MangaLearnJP", "AIService: Making HTTP request to OpenAI API")
+            
             val response = client.newCall(request).execute()
             Logger.i(Logger.Category.NETWORK, "Response received, status: ${response.code}")
             Logger.i(Logger.Category.NETWORK, "Response headers: ${response.headers}")
+            
+            println("AIService: Response received, status: ${response.code}")
+            android.util.Log.d("MangaLearnJP", "AIService: Response received, status: ${response.code}")
             
             if (response.isSuccessful) {
                 val responseBody = response.body?.string()
@@ -179,27 +218,47 @@ class AIService {
                 } else {
                     Logger.i(Logger.Category.NETWORK, "Full response body: $responseBody")
                 }
+                
+                println("AIService: Successful response, parsing...")
+                android.util.Log.d("MangaLearnJP", "AIService: Successful response, parsing...")
+                
                 parseOpenAIResponse(responseBody)
             } else {
                 val errorBody = response.body?.string()
                 Logger.logError("analyzeWithOpenAI", "API call failed with status ${response.code}")
                 Logger.logError("analyzeWithOpenAI", "Error body: $errorBody")
+                
+                println("AIService: API call failed with status ${response.code}")
+                println("AIService: Error body: $errorBody")
+                android.util.Log.e("MangaLearnJP", "AIService: API call failed with status ${response.code}")
+                android.util.Log.e("MangaLearnJP", "AIService: Error body: $errorBody")
+                
                 Result.failure(IOException("OpenAI API call failed: ${response.code} - $errorBody"))
             }
         } catch (e: SocketTimeoutException) {
             Logger.logError("analyzeWithOpenAI", e)
+            println("AIService: Socket timeout exception: ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: Socket timeout exception", e)
             Result.failure(e)
         } catch (e: ConnectException) {
             Logger.logError("analyzeWithOpenAI", e)
+            println("AIService: Connection exception: ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: Connection exception", e)
             Result.failure(e)
         } catch (e: UnknownHostException) {
             Logger.logError("analyzeWithOpenAI", e)
+            println("AIService: Unknown host exception: ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: Unknown host exception", e)
             Result.failure(e)
         } catch (e: IOException) {
             Logger.logError("analyzeWithOpenAI", e)
+            println("AIService: IO exception: ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: IO exception", e)
             Result.failure(e)
         } catch (e: Exception) {
             Logger.logError("analyzeWithOpenAI", e)
+            println("AIService: General exception: ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: General exception", e)
             Result.failure(e)
         }
     }

@@ -73,10 +73,13 @@ fun MangaApp() {
         }
         
         composable("interactive_reading") {
-            val mangaViewModel: MangaAnalysisViewModel = viewModel()
+            val mangaViewModel: MangaAnalysisViewModel = viewModel(
+                factory = MangaAnalysisViewModelFactory(context)
+            )
+            val uiState by mangaViewModel.uiState.collectAsState()
             InteractiveReadingScreen(
-                panels = mangaViewModel.uiState.value.panels,
-                selectedImage = mangaViewModel.uiState.value.selectedImage,
+                panels = uiState.panels,
+                selectedImage = uiState.selectedImage,
                 onAnalyzeWord = { word ->
                     mangaViewModel.analyzeWord(word)
                 },

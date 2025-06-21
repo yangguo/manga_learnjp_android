@@ -364,11 +364,11 @@ class AIService {
             
             // Fallback: create a simple analysis with the raw content
             val fallbackAnalysis = TextAnalysis(
+                originalText = "Failed to parse original text",
                 vocabulary = emptyList(),
-                grammar = emptyList(),
+                grammarPatterns = emptyList(),
                 translation = content.take(500), // Limit translation length
-                difficulty = "Unknown",
-                summary = "Analysis parsing failed. Raw content: ${content.take(200)}..."
+                context = "Analysis parsing failed. Raw content: ${content.take(200)}..."
             )
             
             Logger.i(Logger.Category.AI_SERVICE, "Created fallback analysis")

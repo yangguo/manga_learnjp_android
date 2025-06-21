@@ -45,7 +45,7 @@ fun AISettingsScreen(
                 title = { Text("AI Settings") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(                    Icons.Default.ArrowBack,contentDescription = "Back")
                     }
                 }
             )

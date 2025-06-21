@@ -59,9 +59,9 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         println("ViewModel: MangaAnalysisViewModel initialized")
         viewModelScope.launch {
             val testResult = aiService.testNetworkConnection()
-            println("ViewModel: Network test result: ${testResult.isSuccess}")
-            if (testResult.isFailure) {
-                println("ViewModel: Network test error: ${testResult.exceptionOrNull()?.message}")
+            println("ViewModel: Network test result: $testResult")
+            if (!testResult) {
+                println("ViewModel: Network test failed")
             }
         }
     }

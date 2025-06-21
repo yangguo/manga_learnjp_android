@@ -233,33 +233,79 @@ class AIService {
                 android.util.Log.e("MangaLearnJP", "AIService: API call failed with status ${response.code}")
                 android.util.Log.e("MangaLearnJP", "AIService: Error body: $errorBody")
                 
-                Result.failure(IOException("OpenAI API call failed: ${response.code} - $errorBody"))
+                // Provide more specific error messages based on status code
+                val errorMessage = when (response.code) {
+                    401 -> "❌ OpenAI API Authentication Failed (401)\n" +
+                           "• Check if your API key is correct\n" +
+                           "• Verify the API key has proper permissions\n" +
+                           "• Make sure the API key is not expired"
+                    403 -> "❌ OpenAI API Access Forbidden (403)\n" +
+                           "• Your API key may not have access to GPT-4 Vision\n" +
+                           "• Check your OpenAI account billing status\n" +
+                           "• Verify your usage limits"
+                    429 -> "❌ OpenAI API Rate Limit Exceeded (429)\n" +
+                           "• You've exceeded your API rate limits\n" +
+                           "• Wait a moment and try again\n" +
+                           "• Consider upgrading your OpenAI plan"
+                    500, 502, 503, 504 -> "❌ OpenAI Server Error (${response.code})\n" +
+                                          "• OpenAI servers are experiencing issues\n" +
+                                          "• Try again in a few minutes\n" +
+                                          "• Check OpenAI status page"
+                    else -> "❌ OpenAI API Error (${response.code})\n" +
+                            "• Error details: $errorBody\n" +
+                            "• Check your API configuration"
+                }
+                
+                Result.failure(IOException(errorMessage))
             }
         } catch (e: SocketTimeoutException) {
             Logger.logError("analyzeWithOpenAI", e)
             println("AIService: Socket timeout exception: ${e.message}")
             android.util.Log.e("MangaLearnJP", "AIService: Socket timeout exception", e)
-            Result.failure(e)
+            val errorMessage = "❌ Request Timeout\n" +
+                              "• The request to OpenAI took too long\n" +
+                              "• Check your internet connection\n" +
+                              "• Try again with a smaller image\n" +
+                              "• OpenAI servers might be slow"
+            Result.failure(IOException(errorMessage))
         } catch (e: ConnectException) {
             Logger.logError("analyzeWithOpenAI", e)
             println("AIService: Connection exception: ${e.message}")
             android.util.Log.e("MangaLearnJP", "AIService: Connection exception", e)
-            Result.failure(e)
+            val errorMessage = "❌ Connection Failed\n" +
+                              "• Cannot connect to OpenAI servers\n" +
+                              "• Check your internet connection\n" +
+                              "• Verify you're not behind a firewall\n" +
+                              "• Try again in a few moments"
+            Result.failure(IOException(errorMessage))
         } catch (e: UnknownHostException) {
             Logger.logError("analyzeWithOpenAI", e)
             println("AIService: Unknown host exception: ${e.message}")
             android.util.Log.e("MangaLearnJP", "AIService: Unknown host exception", e)
-            Result.failure(e)
+            val errorMessage = "❌ Network Error\n" +
+                              "• Cannot resolve OpenAI server address\n" +
+                              "• Check your internet connection\n" +
+                              "• Verify DNS settings\n" +
+                              "• Try switching networks (WiFi/Mobile)"
+            Result.failure(IOException(errorMessage))
         } catch (e: IOException) {
             Logger.logError("analyzeWithOpenAI", e)
             println("AIService: IO exception: ${e.message}")
             android.util.Log.e("MangaLearnJP", "AIService: IO exception", e)
-            Result.failure(e)
+            val errorMessage = "❌ Network I/O Error\n" +
+                              "• ${e.message}\n" +
+                              "• Check your internet connection\n" +
+                              "• Try again in a few moments"
+            Result.failure(IOException(errorMessage))
         } catch (e: Exception) {
             Logger.logError("analyzeWithOpenAI", e)
             println("AIService: General exception: ${e.message}")
             android.util.Log.e("MangaLearnJP", "AIService: General exception", e)
-            Result.failure(e)
+            val errorMessage = "❌ Unexpected Error\n" +
+                              "• ${e.message}\n" +
+                              "• Check the logs for more details\n" +
+                              "• Try restarting the app"
+            Result.failure(IOException(errorMessage))
         }
     }
     

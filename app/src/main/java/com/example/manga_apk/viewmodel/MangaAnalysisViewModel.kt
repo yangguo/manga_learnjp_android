@@ -185,18 +185,67 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         }
     }
     
+    private fun validateAnalysisPrerequisites(): String? {
+        Logger.logFunctionEntry("MangaAnalysisViewModel", "validateAnalysisPrerequisites")
+        
+        // Check if image is selected
+        val bitmap = _uiState.value.selectedImage
+        if (bitmap == null) {
+            return "❌ No image selected. Please upload an image first."
+        }
+        
+        // Check AI configuration
+        val currentConfig = _uiState.value.aiConfig
+        val configuredProviders = currentConfig.getConfiguredProviders()
+        
+        if (configuredProviders.isEmpty()) {
+            return "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
+                    "• OpenAI API key for GPT-4 Vision\n" +
+                    "• Google Gemini API key\n" +
+                    "• Or configure a custom OpenAI-compatible API"
+        }
+        
+        // Validate specific provider configurations
+        when (currentConfig.primaryProvider) {
+            AIProvider.OPENAI -> {
+                if (currentConfig.openaiConfig.apiKey.isEmpty()) {
+                    return "❌ OpenAI API key is missing. Please add your OpenAI API key in Settings."
+                }
+                if (currentConfig.openaiConfig.apiKey.length < 20) {
+                    return "❌ OpenAI API key appears to be invalid (too short). Please check your API key in Settings."
+                }
+            }
+            AIProvider.GEMINI -> {
+                if (currentConfig.geminiConfig.apiKey.isEmpty()) {
+                    return "❌ Gemini API key is missing. Please add your Google Gemini API key in Settings."
+                }
+            }
+            AIProvider.CUSTOM -> {
+                if (currentConfig.customConfig.apiKey.isEmpty()) {
+                    return "❌ Custom API key is missing. Please configure your custom API in Settings."
+                }
+                if (currentConfig.customConfig.endpoint.isEmpty()) {
+                    return "❌ Custom API endpoint is missing. Please configure your custom API endpoint in Settings."
+                }
+            }
+        }
+        
+        Logger.logViewModelAction("Prerequisites validation passed")
+        return null // All validations passed
+    }
+    
     fun analyzeFullImage() {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeFullImage")
         
-        val bitmap = _uiState.value.selectedImage
-        if (bitmap == null) {
-            Logger.logError("analyzeFullImage", "No image selected for analysis")
-            _uiState.value = _uiState.value.copy(
-                error = "No image selected. Please upload an image first."
-            )
+        // Validate prerequisites first
+        val validationResult = validateAnalysisPrerequisites()
+        if (validationResult != null) {
+            Logger.logError("analyzeFullImage", "Validation failed: $validationResult")
+            _uiState.value = _uiState.value.copy(error = validationResult)
             return
         }
         
+        val bitmap = _uiState.value.selectedImage!!
         val currentConfig = _uiState.value.aiConfig
         
         Logger.logViewModelAction("Starting full image analysis")
@@ -294,9 +343,33 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun quickAnalysis() {
+        Logger.logFunctionEntry("MangaAnalysisViewModel", "quickAnalysis")
         println("Quick analysis triggered - current mode: ${_uiState.value.currentMode}")
+        android.util.Log.d("MangaLearnJP", "ViewModel: quickAnalysis() called")
+        
+        // Clear any previous errors
+        _uiState.value = _uiState.value.copy(error = null)
+        
+        // Validate prerequisites
+        val validationResult = validateAnalysisPrerequisites()
+        if (validationResult != null) {
+            Logger.logError("quickAnalysis", "Validation failed: $validationResult")
+            _uiState.value = _uiState.value.copy(error = validationResult)
+            return
+        }
+        
         _uiState.value = _uiState.value.copy(currentMode = AnalysisMode.SIMPLE_ANALYSIS)
         println("Mode set to SIMPLE_ANALYSIS")
+        android.util.Log.d("MangaLearnJP", "ViewModel: Mode set to SIMPLE_ANALYSIS, starting analysis")
+        analyzeFullImage()
+    }
+    
+    fun analyzeWithFallback() {
+        Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeWithFallback")
+        println("Analyze with fallback triggered")
+        android.util.Log.d("MangaLearnJP", "ViewModel: analyzeWithFallback() called")
+        
+        // This is essentially the same as analyzeFullImage but with explicit fallback enabled
         analyzeFullImage()
     }
     
@@ -367,52 +440,5 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             isProcessing = false,
             error = null
         )
-    }
-    
-    fun analyzeWithFallback() {
-        Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeWithFallback")
-        
-        val currentConfig = _uiState.value.aiConfig
-        val selectedImage = _uiState.value.selectedImage
-        
-        Logger.logConfigChange("Primary Provider", currentConfig.primaryProvider.toString())
-        Logger.logConfigChange("Configured Providers", currentConfig.getConfiguredProviders().toString())
-        Logger.logConfigChange("Fallback Enabled", currentConfig.enableFallback.toString())
-        
-        // Show which model will be used based on provider
-        when (currentConfig.primaryProvider) {
-            AIProvider.OPENAI -> {
-                Logger.logConfigChange("OpenAI Vision Model", currentConfig.openaiConfig.visionModel)
-                Logger.logConfigChange("OpenAI API Key Configured", currentConfig.openaiConfig.apiKey.isNotEmpty().toString())
-            }
-            AIProvider.GEMINI -> {
-                Logger.logConfigChange("Gemini Model", "gemini-1.5-pro (fixed)")
-                Logger.logConfigChange("Gemini API Key Configured", currentConfig.geminiConfig.apiKey.isNotEmpty().toString())
-            }
-            AIProvider.CUSTOM -> {
-                val modelToUse = if (currentConfig.customConfig.model.isNotEmpty()) {
-                    currentConfig.customConfig.model
-                } else {
-                    "gpt-4o" // fallback model
-                }
-                Logger.logConfigChange("Custom Model", modelToUse)
-                Logger.logConfigChange("Custom Endpoint", currentConfig.customConfig.endpoint)
-                Logger.logConfigChange("Custom API Key Configured", currentConfig.customConfig.apiKey.isNotEmpty().toString())
-            }
-        }
-        
-        if (selectedImage != null) {
-            Logger.logImageProcessing("Image available for analysis", selectedImage.width, selectedImage.height)
-        } else {
-            Logger.logError("analyzeWithFallback", "No image selected")
-        }
-        
-        Logger.logStateChange("MangaAnalysisViewModel", "current processing state", _uiState.value.isProcessing.toString())
-        
-        // Directly call analyzeFullImage which has proper validation
-        Logger.logViewModelAction("Delegating to analyzeFullImage")
-        analyzeFullImage()
-        
-        Logger.logFunctionExit("MangaAnalysisViewModel", "analyzeWithFallback")
     }
 }

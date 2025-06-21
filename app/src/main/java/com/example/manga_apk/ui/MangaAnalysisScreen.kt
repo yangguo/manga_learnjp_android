@@ -112,31 +112,95 @@ fun MangaAnalysisScreen(
             }
         }
         
-        // Error handling
+        // Error handling - Enhanced with better visibility
         uiState.error?.let { error ->
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Text(
+                            text = "Error Details:",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = viewModel::clearError) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Dismiss error",
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Check Android logs (Logcat) with tag 'MangaLearnJP' for detailed debugging information.",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+        
+        // Debug information when processing
+        if (uiState.isProcessing) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.weight(1f)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    IconButton(onClick = viewModel::clearError) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Dismiss error",
-                            tint = MaterialTheme.colorScheme.onErrorContainer
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Processing...",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Check Logcat for detailed progress",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 12.sp
                         )
                     }
                 }

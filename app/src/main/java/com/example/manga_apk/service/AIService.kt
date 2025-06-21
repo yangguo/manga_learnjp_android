@@ -3,6 +3,7 @@ package com.example.manga_apk.service
 import android.graphics.Bitmap
 import android.util.Base64
 import com.example.manga_apk.data.*
+import com.example.manga_apk.utils.Logger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -26,29 +27,29 @@ class AIService {
     private val gson = Gson()
     
     init {
-        println("AIService: Initialized with client: ${client.javaClass.simpleName}")
-        println("AIService: Client timeouts - Connect: ${client.connectTimeoutMillis}, Read: ${client.readTimeoutMillis}, Write: ${client.writeTimeoutMillis}")
+        Logger.i(Logger.Category.AI_SERVICE, "Initialized with client: ${client.javaClass.simpleName}")
+        Logger.i(Logger.Category.AI_SERVICE, "Client timeouts - Connect: ${client.connectTimeoutMillis}ms, Read: ${client.readTimeoutMillis}ms, Write: ${client.writeTimeoutMillis}ms")
     }
     
-    suspend fun testNetworkConnection(): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun testNetworkConnection(): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
-            println("AIService: Testing network connection to httpbin.org")
+            Logger.logFunctionEntry("AIService", "testNetworkConnection")
+            
             val request = Request.Builder()
-                .url("https://httpbin.org/get")
+                .url("https://www.google.com")
+                .head() // Use HEAD request for faster response
                 .build()
             
             val response = client.newCall(request).execute()
-            println("AIService: Test request completed with status: ${response.code}")
+            val isSuccessful = response.isSuccessful
             
-            if (response.isSuccessful) {
-                Result.success("Network connection test successful")
-            } else {
-                Result.failure(Exception("Network test failed with status: ${response.code}"))
-            }
+            Logger.i(Logger.Category.NETWORK, "Network test result: $isSuccessful (status: ${response.code})")
+            response.close()
+            
+            isSuccessful
         } catch (e: Exception) {
-            println("AIService: Network test failed: ${e.message}")
-            e.printStackTrace()
-            Result.failure(e)
+            Logger.logError("testNetworkConnection", "Network test failed", e)
+            false
         }
     }
     
@@ -57,16 +58,17 @@ class AIService {
         config: AIConfig
     ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
         try {
-            println("AIService: Starting analyzeImage")
-            println("AIService: Bitmap size: ${bitmap.width}x${bitmap.height}")
-            println("AIService: Primary Provider: ${config.primaryProvider}")
-            println("AIService: Fallback enabled: ${config.enableFallback}")
+            Logger.logFunctionEntry("AIService", "analyzeImage", mapOf(
+                "bitmapSize" to "${bitmap.width}x${bitmap.height}",
+                "primaryProvider" to config.primaryProvider.toString(),
+                "fallbackEnabled" to config.enableFallback.toString()
+            ))
             
             val providersToTry = config.getConfiguredProviders()
-            println("AIService: Configured providers to try: $providersToTry")
+            Logger.i(Logger.Category.AI_SERVICE, "Configured providers to try: $providersToTry")
             
             if (providersToTry.isEmpty()) {
-                println("AIService: No configured providers found")
+                Logger.logError("analyzeImage", "No configured providers found")
                 return@withContext Result.failure(
                     IllegalArgumentException("No API providers are configured")
                 )
@@ -75,43 +77,42 @@ class AIService {
             var lastException: Exception? = null
             
             for (provider in providersToTry) {
-                println("AIService: Trying provider: $provider")
+                Logger.i(Logger.Category.AI_SERVICE, "Attempting analysis with provider: $provider")
                 
                 val result = when (provider) {
                     AIProvider.OPENAI -> {
-                        println("AIService: Using OpenAI provider")
+                        Logger.i(Logger.Category.AI_SERVICE, "Using OpenAI provider")
                         analyzeWithOpenAI(bitmap, config.openaiConfig)
                     }
                     AIProvider.GEMINI -> {
-                        println("AIService: Using Gemini provider")
+                        Logger.i(Logger.Category.AI_SERVICE, "Using Gemini provider")
                         analyzeWithGemini(bitmap, config.geminiConfig)
                     }
                     AIProvider.CUSTOM -> {
-                        println("AIService: Using Custom provider")
+                        Logger.i(Logger.Category.AI_SERVICE, "Using Custom provider")
                         analyzeWithCustomAPI(bitmap, config.customConfig)
                     }
                 }
                 
                 if (result.isSuccess) {
-                    println("AIService: Successfully analyzed with provider: $provider")
+                    Logger.i(Logger.Category.AI_SERVICE, "Analysis successful with provider: $provider")
                     return@withContext result
                 } else {
                     lastException = result.exceptionOrNull() as? Exception
-                    println("AIService: Provider $provider failed: ${lastException?.message}")
+                    Logger.logError("analyzeImage", "Analysis failed with provider: $provider", lastException)
                     
                     // If fallback is disabled and this is the primary provider, return the failure
                     if (!config.enableFallback && provider == config.primaryProvider) {
-                        println("AIService: Fallback disabled, returning failure from primary provider")
+                        Logger.i(Logger.Category.AI_SERVICE, "Fallback disabled, returning failure from primary provider")
                         return@withContext result
                     }
                 }
             }
             
-            println("AIService: All providers failed")
+            Logger.logError("analyzeImage", "All providers failed", lastException)
             Result.failure(lastException ?: Exception("All configured providers failed"))
         } catch (e: Exception) {
-            println("AIService: Exception in analyzeImage: ${e.message}")
-            e.printStackTrace()
+            Logger.logError("analyzeImage", "Unexpected error", e)
             Result.failure(e)
         }
     }
@@ -120,14 +121,17 @@ class AIService {
         bitmap: Bitmap,
         config: OpenAIConfig
     ): Result<TextAnalysis> {
-        println("AIService: Starting OpenAI analysis")
+        Logger.logFunctionEntry("AIService", "analyzeWithOpenAI", mapOf(
+            "bitmapSize" to "${bitmap.width}x${bitmap.height}",
+            "visionModel" to config.visionModel
+        ))
         
         val base64Image = bitmapToBase64(bitmap)
-        println("AIService: Image converted to base64, length: ${base64Image.length}")
+        Logger.i(Logger.Category.IMAGE, "Image converted to base64, length: ${base64Image.length}")
         
         // Use the visionModel for OpenAI provider
         val modelToUse = config.visionModel
-        println("AIService: Using OpenAI model: $modelToUse")
+        Logger.i(Logger.Category.AI_SERVICE, "Using OpenAI model: $modelToUse")
         
         val requestBody = JsonObject().apply {
             addProperty("model", modelToUse)
@@ -146,8 +150,8 @@ class AIService {
             addProperty("max_tokens", 4000)
         }
         
-        println("AIService: Request body prepared")
-        println("AIService: Using model: $modelToUse")
+        Logger.i(Logger.Category.AI_SERVICE, "Request body prepared")
+        Logger.i(Logger.Category.AI_SERVICE, "Using model: $modelToUse")
         
         val request = Request.Builder()
             .url("https://api.openai.com/v1/chat/completions")
@@ -156,44 +160,47 @@ class AIService {
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
             .build()
         
-        println("AIService: Making API request to OpenAI")
+        Logger.i(Logger.Category.NETWORK, "Making API request to OpenAI")
         
         return try {
-            println("AIService: Making API request to OpenAI")
-            println("AIService: Request URL: https://api.openai.com/v1/chat/completions")
-            println("AIService: Request headers: Authorization=Bearer [REDACTED], Content-Type=application/json")
+            Logger.i(Logger.Category.NETWORK, "Making API request to OpenAI")
+            Logger.i(Logger.Category.NETWORK, "Request URL: https://api.openai.com/v1/chat/completions")
+            Logger.i(Logger.Category.NETWORK, "Request headers: Authorization=Bearer [REDACTED], Content-Type=application/json")
             
             val response = client.newCall(request).execute()
-            println("AIService: Response received, status: ${response.code}")
-            println("AIService: Response headers: ${response.headers}")
+            Logger.i(Logger.Category.NETWORK, "Response received, status: ${response.code}")
+            Logger.i(Logger.Category.NETWORK, "Response headers: ${response.headers}")
             
             if (response.isSuccessful) {
                 val responseBody = response.body?.string()
-                println("AIService: Response body length: ${responseBody?.length ?: 0}")
+                Logger.i(Logger.Category.NETWORK, "Response body length: ${responseBody?.length ?: 0}")
                 if (responseBody != null && responseBody.length > 100) {
-                    println("AIService: Response body preview: ${responseBody.take(200)}...")
+                    Logger.i(Logger.Category.NETWORK, "Response body preview: ${responseBody.take(200)}...")
                 } else {
-                    println("AIService: Full response body: $responseBody")
+                    Logger.i(Logger.Category.NETWORK, "Full response body: $responseBody")
                 }
                 parseOpenAIResponse(responseBody)
             } else {
                 val errorBody = response.body?.string()
-                println("AIService: API call failed with status ${response.code}")
-                println("AIService: Error body: $errorBody")
+                Logger.logError("analyzeWithOpenAI", "API call failed with status ${response.code}")
+                Logger.logError("analyzeWithOpenAI", "Error body: $errorBody")
                 Result.failure(IOException("OpenAI API call failed: ${response.code} - $errorBody"))
             }
+        } catch (e: SocketTimeoutException) {
+            Logger.logError("analyzeWithOpenAI", "Request timeout", e)
+            Result.failure(e)
+        } catch (e: ConnectException) {
+            Logger.logError("analyzeWithOpenAI", "Connection failed", e)
+            Result.failure(e)
+        } catch (e: UnknownHostException) {
+            Logger.logError("analyzeWithOpenAI", "Host unknown", e)
+            Result.failure(e)
+        } catch (e: IOException) {
+            Logger.logError("analyzeWithOpenAI", "IO error", e)
+            Result.failure(e)
         } catch (e: Exception) {
-            println("AIService: Network error: ${e.message}")
-            e.printStackTrace()
-            
-            val errorMessage = when (e) {
-                is UnknownHostException -> "Unable to resolve host. Check internet connection."
-                is ConnectException -> "Unable to connect to server. Check internet connection."
-                is SocketTimeoutException -> "Request timed out. Server may be overloaded."
-                else -> "Network error: ${e.message}"
-            }
-            
-            Result.failure(IOException(errorMessage, e))
+            Logger.logError("analyzeWithOpenAI", "Unexpected error", e)
+            Result.failure(e)
         }
     }
     
@@ -291,23 +298,33 @@ class AIService {
     
     private fun parseOpenAIResponse(responseBody: String?): Result<TextAnalysis> {
         return try {
-            println("AIService: Parsing OpenAI response")
-            println("AIService: Response body preview: ${responseBody?.take(200)}")
+            Logger.logFunctionEntry("AIService", "parseOpenAIResponse", mapOf(
+                "responseLength" to (responseBody?.length ?: 0).toString()
+            ))
+            
+            if (responseBody.isNullOrEmpty()) {
+                Logger.logError("parseOpenAIResponse", "Response body is null or empty")
+                return Result.failure(Exception("Empty response body"))
+            }
             
             val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
-            val content = jsonResponse
-                .getAsJsonArray("choices")
-                .get(0).asJsonObject
-                .getAsJsonObject("message")
-                .get("content").asString
             
-            println("AIService: Extracted content length: ${content.length}")
-            println("AIService: Content preview: ${content.take(200)}")
+            val choices = jsonResponse.getAsJsonArray("choices")
+            if (choices == null || choices.size() == 0) {
+                Logger.logError("parseOpenAIResponse", "No choices in response")
+                return Result.failure(Exception("No choices in OpenAI response"))
+            }
+            
+            val firstChoice = choices[0].asJsonObject
+            val message = firstChoice.getAsJsonObject("message")
+            val content = message.get("content").asString
+            
+            Logger.i(Logger.Category.AI_SERVICE, "Extracted content from OpenAI response, length: ${content.length}")
             
             parseAnalysisContent(content)
+            
         } catch (e: Exception) {
-            println("AIService: Error parsing OpenAI response: ${e.message}")
-            e.printStackTrace()
+            Logger.logError("parseOpenAIResponse", "Error parsing response", e)
             Result.failure(e)
         }
     }
@@ -331,44 +348,51 @@ class AIService {
     
     private fun parseAnalysisContent(content: String): Result<TextAnalysis> {
         return try {
-            println("AIService: Parsing analysis content")
-            println("AIService: Attempting JSON parse of content")
+            Logger.logFunctionEntry("AIService", "parseAnalysisContent", mapOf(
+                "contentLength" to content.length.toString()
+            ))
             
-            // Parse the structured response from AI
+            // Try to parse as JSON first
+            val gson = Gson()
             val analysis = gson.fromJson(content, TextAnalysis::class.java)
-            println("AIService: JSON parsing successful")
-            println("AIService: Analysis - Original text: ${analysis.originalText.take(50)}")
-            Result.success(analysis)
-        } catch (e: Exception) {
-            println("AIService: JSON parsing failed: ${e.message}")
-            println("AIService: Creating fallback analysis")
             
-            // Fallback: create a basic analysis if JSON parsing fails
+            Logger.i(Logger.Category.AI_SERVICE, "Successfully parsed JSON analysis")
+            Result.success(analysis)
+            
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "JSON parsing failed, attempting fallback parsing: ${e.message}")
+            
+            // Fallback: create a simple analysis with the raw content
             val fallbackAnalysis = TextAnalysis(
-                originalText = content,
                 vocabulary = emptyList(),
-                grammarPatterns = emptyList(),
-                translation = "Analysis parsing failed. Raw content: $content",
-                context = "Error in parsing AI response"
+                grammar = emptyList(),
+                translation = content.take(500), // Limit translation length
+                difficulty = "Unknown",
+                summary = "Analysis parsing failed. Raw content: ${content.take(200)}..."
             )
-            println("AIService: Fallback analysis created")
+            
+            Logger.i(Logger.Category.AI_SERVICE, "Created fallback analysis")
             Result.success(fallbackAnalysis)
         }
     }
     
     private fun bitmapToBase64(bitmap: Bitmap): String {
-        println("AIService: Converting bitmap to base64")
-        println("AIService: Bitmap config: ${bitmap.config}, size: ${bitmap.width}x${bitmap.height}")
+        Logger.logFunctionEntry("AIService", "bitmapToBase64", mapOf(
+            "originalSize" to "${bitmap.width}x${bitmap.height}",
+            "byteCount" to bitmap.byteCount.toString()
+        ))
         
         val outputStream = ByteArrayOutputStream()
-        val compressionResult = bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-        println("AIService: Compression successful: $compressionResult")
+        
+        // Compress the bitmap to reduce size
+        val quality = 85 // Adjust quality as needed (0-100)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
         
         val byteArray = outputStream.toByteArray()
-        println("AIService: Compressed image size: ${byteArray.size} bytes")
+        Logger.i(Logger.Category.IMAGE, "Compressed image size: ${byteArray.size} bytes (quality: $quality%)")
         
         val base64String = Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        println("AIService: Base64 encoding complete, length: ${base64String.length}")
+        Logger.i(Logger.Category.IMAGE, "Base64 string length: ${base64String.length}")
         
         return base64String
     }

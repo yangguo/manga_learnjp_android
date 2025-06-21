@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.ViewModel
+import com.example.manga_apk.utils.Logger
 import androidx.lifecycle.viewModelScope
 import com.example.manga_apk.data.*
 import com.example.manga_apk.service.AIService
@@ -185,9 +186,11 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun analyzeFullImage() {
+        Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeFullImage")
+        
         val bitmap = _uiState.value.selectedImage
         if (bitmap == null) {
-            println("No image selected for analysis")
+            Logger.logError("analyzeFullImage", "No image selected for analysis")
             _uiState.value = _uiState.value.copy(
                 error = "No image selected. Please upload an image first."
             )
@@ -196,12 +199,15 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         
         val currentConfig = _uiState.value.aiConfig
         
-        println("Starting full image analysis - Primary Provider: ${currentConfig.primaryProvider}, Configured providers: ${currentConfig.getConfiguredProviders()}")
+        Logger.logViewModelAction("Starting full image analysis")
+        Logger.logConfigChange("Primary Provider", currentConfig.primaryProvider.toString())
+        Logger.logConfigChange("Configured Providers", currentConfig.getConfiguredProviders().toString())
+        Logger.logImageProcessing("Image ready for analysis", bitmap.width, bitmap.height)
         
         // Validate configuration before proceeding
         val configuredProviders = currentConfig.getConfiguredProviders()
         if (configuredProviders.isEmpty()) {
-            println("No providers configured")
+            Logger.logError("analyzeFullImage", "No providers configured")
             _uiState.value = _uiState.value.copy(
                 error = "No AI providers are configured. Please configure at least one provider in settings."
             )
@@ -209,43 +215,58 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         }
         
         viewModelScope.launch {
-            println("Setting processing state to true")
+            Logger.logStateChange("MangaAnalysisViewModel", "idle", "processing")
             _uiState.value = _uiState.value.copy(
                 isProcessing = true,
                 error = null
             )
             
+            val startTime = System.currentTimeMillis()
+            
             try {
-                println("Calling AI service for image analysis")
+                Logger.logAIServiceCall(currentConfig.primaryProvider.toString(), "analyzeImage")
                 val result = aiService.analyzeImage(bitmap, currentConfig)
                 
                 result.fold(
                     onSuccess = { analysis ->
-                        println("Analysis successful: ${analysis.originalText.take(50)}...")
+                        val duration = System.currentTimeMillis() - startTime
+                        Logger.logPerformance("Image analysis", duration)
+                        Logger.i(Logger.Category.AI_SERVICE, "Analysis successful: ${analysis.originalText.take(50)}...")
+                        
                         _uiState.value = _uiState.value.copy(
                             overallAnalysis = analysis,
                             isProcessing = false,
                             error = null
                         )
+                        Logger.logStateChange("MangaAnalysisViewModel", "processing", "success")
                     },
                     onFailure = { error ->
-                        println("Analysis failed: ${error.message}")
+                        val duration = System.currentTimeMillis() - startTime
+                        Logger.logPerformance("Failed image analysis", duration)
+                        Logger.logError("analyzeFullImage", error)
+                        
                         _uiState.value = _uiState.value.copy(
                             isProcessing = false,
                             error = "Analysis failed: ${error.message ?: "Unknown error"}"
                         )
+                        Logger.logStateChange("MangaAnalysisViewModel", "processing", "error")
                     }
                 )
                 
             } catch (e: Exception) {
-                println("Exception during analysis: ${e.message}")
-                e.printStackTrace()
+                val duration = System.currentTimeMillis() - startTime
+                Logger.logPerformance("Exception in image analysis", duration)
+                Logger.logError("analyzeFullImage", e)
+                
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
                     error = "Image analysis failed: ${e.message ?: "Unknown error"}"
                 )
+                Logger.logStateChange("MangaAnalysisViewModel", "processing", "exception")
             }
         }
+        
+        Logger.logFunctionExit("MangaAnalysisViewModel", "analyzeFullImage")
     }
     
     fun analyzeWord(word: String) {
@@ -349,25 +370,24 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun analyzeWithFallback() {
-        println("ViewModel: === ANALYZE WITH FALLBACK CALLED ===")
+        Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeWithFallback")
+        
         val currentConfig = _uiState.value.aiConfig
         val selectedImage = _uiState.value.selectedImage
         
-        // Show debug info in UI error message temporarily
-        val debugInfo = "Debug: Provider=${currentConfig.primaryProvider}, Configured=${currentConfig.getConfiguredProviders().isNotEmpty()}, Image=${selectedImage != null}"
-        _uiState.value = _uiState.value.copy(error = debugInfo)
-        
-        println("ViewModel: Current config - Provider: ${currentConfig.primaryProvider}")
-        println("ViewModel: Configured providers: ${currentConfig.getConfiguredProviders()}")
-        println("ViewModel: Fallback enabled: ${currentConfig.enableFallback}")
+        Logger.logConfigChange("Primary Provider", currentConfig.primaryProvider.toString())
+        Logger.logConfigChange("Configured Providers", currentConfig.getConfiguredProviders().toString())
+        Logger.logConfigChange("Fallback Enabled", currentConfig.enableFallback.toString())
         
         // Show which model will be used based on provider
         when (currentConfig.primaryProvider) {
             AIProvider.OPENAI -> {
-                println("ViewModel: Will use OpenAI vision model: ${currentConfig.openaiConfig.visionModel}")
+                Logger.logConfigChange("OpenAI Vision Model", currentConfig.openaiConfig.visionModel)
+                Logger.logConfigChange("OpenAI API Key Configured", currentConfig.openaiConfig.apiKey.isNotEmpty().toString())
             }
             AIProvider.GEMINI -> {
-                println("ViewModel: Will use Gemini 1.5 Pro model (fixed)")
+                Logger.logConfigChange("Gemini Model", "gemini-1.5-pro (fixed)")
+                Logger.logConfigChange("Gemini API Key Configured", currentConfig.geminiConfig.apiKey.isNotEmpty().toString())
             }
             AIProvider.CUSTOM -> {
                 val modelToUse = if (currentConfig.customConfig.model.isNotEmpty()) {
@@ -375,33 +395,24 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                 } else {
                     "gpt-4o" // fallback model
                 }
-                println("ViewModel: Will use custom model: $modelToUse")
-                println("ViewModel: Custom endpoint: ${currentConfig.customConfig.endpoint}")
+                Logger.logConfigChange("Custom Model", modelToUse)
+                Logger.logConfigChange("Custom Endpoint", currentConfig.customConfig.endpoint)
+                Logger.logConfigChange("Custom API Key Configured", currentConfig.customConfig.apiKey.isNotEmpty().toString())
             }
         }
-        println("ViewModel: Selected image: ${selectedImage != null}")
         
         if (selectedImage != null) {
-            println("ViewModel: Image size: ${selectedImage.width}x${selectedImage.height}")
-            println("ViewModel: Image config: ${selectedImage.config}")
+            Logger.logImageProcessing("Image available for analysis", selectedImage.width, selectedImage.height)
+        } else {
+            Logger.logError("analyzeWithFallback", "No image selected")
         }
         
-        println("ViewModel: Current processing state: ${_uiState.value.isProcessing}")
+        Logger.logStateChange("MangaAnalysisViewModel", "current processing state", _uiState.value.isProcessing.toString())
         
-        // Force a network test first
-        viewModelScope.launch {
-            println("ViewModel: Starting network test before analysis")
-            val networkTest = aiService.testNetworkConnection()
-            println("ViewModel: Network test result: ${networkTest.isSuccess}")
-            
-            // If no providers configured, run test analysis instead
-            if (currentConfig.getConfiguredProviders().isEmpty()) {
-                println("ViewModel: No providers configured, running test analysis")
-                testAnalysis()
-            } else {
-                println("ViewModel: Providers configured, running real analysis")
-                analyzeFullImage()
-            }
-        }
+        // Directly call analyzeFullImage which has proper validation
+        Logger.logViewModelAction("Delegating to analyzeFullImage")
+        analyzeFullImage()
+        
+        Logger.logFunctionExit("MangaAnalysisViewModel", "analyzeWithFallback")
     }
 }

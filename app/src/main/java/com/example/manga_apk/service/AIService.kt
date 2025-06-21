@@ -48,7 +48,7 @@ class AIService {
             
             isSuccessful
         } catch (e: Exception) {
-            Logger.logError("testNetworkConnection", "Network test failed", e)
+            Logger.logError("testNetworkConnection", e)
             false
         }
     }
@@ -99,7 +99,7 @@ class AIService {
                     return@withContext result
                 } else {
                     lastException = result.exceptionOrNull() as? Exception
-                    Logger.logError("analyzeImage", "Analysis failed with provider: $provider", lastException)
+                    Logger.logError("analyzeImage", lastException ?: Exception("Analysis failed with provider: $provider"))
                     
                     // If fallback is disabled and this is the primary provider, return the failure
                     if (!config.enableFallback && provider == config.primaryProvider) {
@@ -109,10 +109,10 @@ class AIService {
                 }
             }
             
-            Logger.logError("analyzeImage", "All providers failed", lastException)
+            Logger.logError("analyzeImage", lastException ?: Exception("All providers failed"))
             Result.failure(lastException ?: Exception("All configured providers failed"))
         } catch (e: Exception) {
-            Logger.logError("analyzeImage", "Unexpected error", e)
+            Logger.logError("analyzeImage", e)
             Result.failure(e)
         }
     }
@@ -187,19 +187,19 @@ class AIService {
                 Result.failure(IOException("OpenAI API call failed: ${response.code} - $errorBody"))
             }
         } catch (e: SocketTimeoutException) {
-            Logger.logError("analyzeWithOpenAI", "Request timeout", e)
+            Logger.logError("analyzeWithOpenAI", e)
             Result.failure(e)
         } catch (e: ConnectException) {
-            Logger.logError("analyzeWithOpenAI", "Connection failed", e)
+            Logger.logError("analyzeWithOpenAI", e)
             Result.failure(e)
         } catch (e: UnknownHostException) {
-            Logger.logError("analyzeWithOpenAI", "Host unknown", e)
+            Logger.logError("analyzeWithOpenAI", e)
             Result.failure(e)
         } catch (e: IOException) {
-            Logger.logError("analyzeWithOpenAI", "IO error", e)
+            Logger.logError("analyzeWithOpenAI", e)
             Result.failure(e)
         } catch (e: Exception) {
-            Logger.logError("analyzeWithOpenAI", "Unexpected error", e)
+            Logger.logError("analyzeWithOpenAI", e)
             Result.failure(e)
         }
     }
@@ -324,7 +324,7 @@ class AIService {
             parseAnalysisContent(content)
             
         } catch (e: Exception) {
-            Logger.logError("parseOpenAIResponse", "Error parsing response", e)
+            Logger.logError("parseOpenAIResponse", e)
             Result.failure(e)
         }
     }

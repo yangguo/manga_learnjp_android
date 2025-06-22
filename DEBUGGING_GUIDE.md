@@ -10,6 +10,20 @@
 - App appears frozen or unresponsive
 
 **Root Cause Analysis:**
+
+**FIXED ISSUE: API Key Validation with Whitespace**
+- **Problem**: API keys with leading/trailing whitespace were not being recognized as valid
+- **Solution**: Added `.trim()` to all API key validation and storage operations
+- **Files Modified**: 
+  - `AIProvider.kt`: Enhanced `isProviderConfigured()` method
+  - `PreferencesRepository.kt`: Added trimming when saving API keys
+  - `MangaAnalysisViewModel.kt`: Enhanced debug logging
+
+**Additional Troubleshooting Steps:**
+1. **Re-enter API Key**: Clear the API key field completely and re-enter it
+2. **Check Debug Logs**: Look for "API key status" logs showing actual key lengths
+3. **Verify Trimming**: The app now automatically trims whitespace from API keys
+4. **Enhanced Error Messages**: Error messages now include debug info about key lengths
 The most common cause is that **no AI providers are configured**. The app requires at least one API key to be set up before analysis can work.
 
 **Debugging Steps:**

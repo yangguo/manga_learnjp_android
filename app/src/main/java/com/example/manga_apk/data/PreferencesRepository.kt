@@ -76,24 +76,28 @@ class PreferencesRepository(private val context: Context) {
             preferences[PRIMARY_PROVIDER_KEY] = config.primaryProvider.name
             preferences[ENABLE_FALLBACK_KEY] = config.enableFallback
             
-            // OpenAI Config
-            preferences[OPENAI_API_KEY] = config.openaiConfig.apiKey
-            preferences[OPENAI_TEXT_MODEL_KEY] = config.openaiConfig.textModel
-            preferences[OPENAI_VISION_MODEL_KEY] = config.openaiConfig.visionModel
+            // OpenAI Config - trim whitespace
+            preferences[OPENAI_API_KEY] = config.openaiConfig.apiKey.trim()
+            preferences[OPENAI_TEXT_MODEL_KEY] = config.openaiConfig.textModel.trim()
+            preferences[OPENAI_VISION_MODEL_KEY] = config.openaiConfig.visionModel.trim()
             
-            // Gemini Config
-            preferences[GEMINI_API_KEY] = config.geminiConfig.apiKey
-            preferences[GEMINI_MODEL_KEY] = config.geminiConfig.model
+            // Gemini Config - trim whitespace
+            preferences[GEMINI_API_KEY] = config.geminiConfig.apiKey.trim()
+            preferences[GEMINI_MODEL_KEY] = config.geminiConfig.model.trim()
             
-            // Custom API Config
-            preferences[CUSTOM_API_KEY] = config.customConfig.apiKey
-            preferences[CUSTOM_ENDPOINT_KEY] = config.customConfig.endpoint
-            preferences[CUSTOM_MODEL_KEY] = config.customConfig.model
+            // Custom API Config - trim whitespace
+            preferences[CUSTOM_API_KEY] = config.customConfig.apiKey.trim()
+            preferences[CUSTOM_ENDPOINT_KEY] = config.customConfig.endpoint.trim()
+            preferences[CUSTOM_MODEL_KEY] = config.customConfig.model.trim()
             
             // General settings
             preferences[INCLUDE_GRAMMAR_KEY] = config.includeGrammar
             preferences[INCLUDE_VOCABULARY_KEY] = config.includeVocabulary
             preferences[INCLUDE_TRANSLATION_KEY] = config.includeTranslation
         }
+        
+        // Add debug logging to verify save operation
+        println("PreferencesRepository: Saved AI config - OpenAI key length: ${config.openaiConfig.apiKey.trim().length}, Gemini key length: ${config.geminiConfig.apiKey.trim().length}")
+        android.util.Log.d("MangaLearnJP", "PreferencesRepository: API keys saved - OpenAI: ${if (config.openaiConfig.apiKey.trim().isNotEmpty()) "configured" else "empty"}, Gemini: ${if (config.geminiConfig.apiKey.trim().isNotEmpty()) "configured" else "empty"}")
     }
 }

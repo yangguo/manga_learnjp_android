@@ -61,9 +61,9 @@ data class AIConfig(
     
     fun isProviderConfigured(provider: AIProvider): Boolean {
         return when (provider) {
-            AIProvider.OPENAI -> openaiConfig.apiKey.isNotEmpty()
-            AIProvider.GEMINI -> geminiConfig.apiKey.isNotEmpty()
-            AIProvider.CUSTOM -> customConfig.apiKey.isNotEmpty() && customConfig.endpoint.isNotEmpty()
+            AIProvider.OPENAI -> openaiConfig.apiKey.trim().isNotEmpty()
+            AIProvider.GEMINI -> geminiConfig.apiKey.trim().isNotEmpty()
+            AIProvider.CUSTOM -> customConfig.apiKey.trim().isNotEmpty() && customConfig.endpoint.trim().isNotEmpty()
         }
     }
 }

@@ -210,14 +210,19 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         val currentConfig = _uiState.value.aiConfig
         val configuredProviders = currentConfig.getConfiguredProviders()
         
+        // Enhanced debug logging
         println("ViewModel: AI Config check - Primary provider: ${currentConfig.primaryProvider}, Configured providers: $configuredProviders")
+        println("ViewModel: OpenAI key length: ${currentConfig.openaiConfig.apiKey.trim().length}, Gemini key length: ${currentConfig.geminiConfig.apiKey.trim().length}")
+        println("ViewModel: OpenAI configured: ${currentConfig.isProviderConfigured(AIProvider.OPENAI)}, Gemini configured: ${currentConfig.isProviderConfigured(AIProvider.GEMINI)}")
         android.util.Log.d("MangaLearnJP", "ViewModel: AI Config check - Primary provider: ${currentConfig.primaryProvider}, Configured providers: $configuredProviders")
+        android.util.Log.d("MangaLearnJP", "ViewModel: API key status - OpenAI: ${if (currentConfig.openaiConfig.apiKey.trim().isNotEmpty()) "${currentConfig.openaiConfig.apiKey.trim().length} chars" else "empty"}, Gemini: ${if (currentConfig.geminiConfig.apiKey.trim().isNotEmpty()) "${currentConfig.geminiConfig.apiKey.trim().length} chars" else "empty"}")
         
         if (configuredProviders.isEmpty()) {
             val errorMsg = "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
                     "• OpenAI API key for GPT-4 Vision\n" +
                     "• Google Gemini API key\n" +
-                    "• Or configure a custom OpenAI-compatible API"
+                    "• Or configure a custom OpenAI-compatible API\n\n" +
+                    "Debug info: OpenAI key length=${currentConfig.openaiConfig.apiKey.trim().length}, Gemini key length=${currentConfig.geminiConfig.apiKey.trim().length}"
             println("ViewModel: Validation failed - $errorMsg")
             android.util.Log.e("MangaLearnJP", "ViewModel: Validation failed - $errorMsg")
             return errorMsg

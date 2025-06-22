@@ -26,8 +26,8 @@ import com.example.manga_apk.data.ReadingTheme
 fun ReadingSettingsPanel(
     preferences: ReadingPreferences,
     isAutoScrolling: Boolean,
-    onFontSizeChange: (androidx.compose.ui.unit.TextUnit) -> Unit,
-    onLineHeightChange: (Float) -> Unit,
+    onFontSizeChange: (Int) -> Unit,
+    onLineHeightChange: (Int) -> Unit,
     onThemeChange: (ReadingTheme) -> Unit,
     onFontFamilyChange: (FontFamily) -> Unit,
     onBrightnessChange: (Float) -> Unit,
@@ -82,7 +82,7 @@ fun ReadingSettingsPanel(
                     title = "Font Size",
                     isNightMode = preferences.isNightMode
                 ) {
-                    val fontSizes = listOf(12.sp, 14.sp, 16.sp, 18.sp, 20.sp, 24.sp, 28.sp)
+                    val fontSizes = listOf(12, 14, 16, 18, 20, 24, 28)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -90,7 +90,7 @@ fun ReadingSettingsPanel(
                         fontSizes.forEach { size ->
                             FilterChip(
                                 onClick = { onFontSizeChange(size) },
-                                label = { Text("${size.value.toInt()}") },
+                                label = { Text("$size") },
                                 selected = preferences.fontSize == size,
                                 modifier = Modifier.padding(horizontal = 2.dp)
                             )
@@ -106,14 +106,14 @@ fun ReadingSettingsPanel(
                     isNightMode = preferences.isNightMode
                 ) {
                     Slider(
-                        value = preferences.lineHeight,
-                        onValueChange = onLineHeightChange,
-                        valueRange = 1.0f..2.5f,
+                        value = preferences.lineHeight.toFloat(),
+                        onValueChange = { onLineHeightChange(it.toInt()) },
+                        valueRange = 16f..32f,
                         steps = 10,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "${String.format("%.1f", preferences.lineHeight)}x",
+                        "${preferences.lineHeight}px",
                         fontSize = 12.sp,
                         color = if (preferences.isNightMode) Color.Gray else Color.DarkGray
                     )
@@ -136,7 +136,7 @@ fun ReadingSettingsPanel(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
-                                    selected = preferences.backgroundColor == theme,
+                                    selected = preferences.theme == theme,
                                     onClick = { onThemeChange(theme) }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))

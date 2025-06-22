@@ -9,10 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.BookmarkAdd
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,8 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.manga_apk.data.*
 import com.example.manga_apk.viewmodel.ReadingViewModel
-import com.example.manga_apk.data.VocabularyItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,22 +37,38 @@ fun VocabularyFocusScreen(
     // Sample vocabulary data
     val vocabularyItems = remember {
         listOf(
-            VocabularyItem("図書館", "としょかん", "Library", "noun", "N4", 2),
-            VocabularyItem("冒険", "ぼうけん", "Adventure", "noun", "N3", 3),
-            VocabularyItem("秘密", "ひみつ", "Secret", "noun", "N4", 2),
-            VocabularyItem("伝説", "でんせつ", "Legend", "noun", "N3", 3),
-            VocabularyItem("古文書", "こぶんしょ", "Ancient document", "noun", "N1", 5),
-            VocabularyItem("月明かり", "つきあかり", "Moonlight", "noun", "N3", 3),
-            VocabularyItem("不思議", "ふしぎ", "Mysterious, strange", "adjective", "N4", 2)
+            VocabularyItem(
+                word = "こんにちは",
+                reading = "こんにちは",
+                meaning = "Hello",
+                partOfSpeech = "Greeting",
+                jlptLevel = "N5",
+                difficulty = 1
+            ),
+            VocabularyItem(
+                word = "ありがとう",
+                reading = "ありがとう", 
+                meaning = "Thank you",
+                partOfSpeech = "Expression",
+                jlptLevel = "N5",
+                difficulty = 1
+            ),
+            VocabularyItem(
+                word = "学校",
+                reading = "がっこう",
+                meaning = "School",
+                partOfSpeech = "Noun",
+                jlptLevel = "N5",
+                difficulty = 2
+            )
         )
     }
 
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Top App Bar
         TopAppBar(
-            title = { Text("Vocabulary Focus") },
+            title = { Text("🎯 Vocabulary Focus") },
             navigationIcon = {
                 IconButton(onClick = onNavigateBack) {
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -66,186 +80,164 @@ fun VocabularyFocusScreen(
                 }
             }
         )
+        
+        if (showSettings) {
+            VocabularyFocusSettings(
+                preferences = uiState.preferences,
+                onUpdatePreferences = { viewModel.updatePreferences(it) },
+                onDismiss = { showSettings = false }
+            )
+        }
+        
+        // Vocabulary List
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(vocabularyItems) { vocab ->
+                VocabularyCard(
+                    vocabulary = vocab,
+                    onWordClick = { selectedWord = it }
+                )
+            }
+        }
+    }
+    
+    // Word Detail Dialog
+    selectedWord?.let { word ->
+        AlertDialog(
+            onDismissRequest = { selectedWord = null },
+            title = { Text(word.word) },
+            text = {
+                Column {
+                    Text("Reading: ${word.reading}")
+                    Text("Meaning: ${word.meaning}")
+                    Text("Part of Speech: ${word.partOfSpeech}")
+                    word.jlptLevel?.let { Text("JLPT Level: $it") }
+                    Text("Difficulty: ${word.difficulty}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedWord = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+}
 
-        // Vocabulary Stats
-        Card(
+@Composable
+private fun VocabularyCard(
+    vocabulary: VocabularyItem,
+    onWordClick: (VocabularyItem) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onWordClick(vocabulary) },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "${vocabulary.word} (${vocabulary.reading})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = vocabulary.meaning,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Text(
+                text = vocabulary.difficulty.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier
+                    .background(
+                        color = when (vocabulary.difficulty) {
+                            1 -> Color(0xFF4CAF50)
+                            2 -> Color(0xFFFF9800)
+                            3 -> Color(0xFFF44336)
+                            else -> Color.Gray
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                color = Color.White
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VocabularyFocusSettings(
+    preferences: ReadingPreferences,
+    onUpdatePreferences: (ReadingPreferences) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                VocabularyStatCard("Words Learned", "24", Color(0xFF4CAF50))
-                VocabularyStatCard("New Words", "7", Color(0xFF2196F3))
-                VocabularyStatCard("Difficulty", "N3", Color(0xFFFF9800))
-            }
-        }
-
-        // Reading Content with Vocabulary Highlights
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Interactive Reading Text",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    "Vocabulary Settings",
+                    style = MaterialTheme.typography.titleMedium
                 )
-                
-                // Interactive text with clickable vocabulary
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    VocabularyHighlightedText(
-                        text = "静かな夜の図書館で、古い本のページをめくる音だけが響いていた。主人公は長い間探していた古文書をついに見つけた。その本には不思議な力が宿っているという伝説があった。",
-                        vocabularyItems = vocabularyItems,
-                        onWordClick = { word -> selectedWord = word },
-                        fontSize = uiState.preferences.fontSize
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // JLPT Level Filter
+            Text("JLPT Level Filter", style = MaterialTheme.typography.bodyMedium)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("N5", "N4", "N3", "N2", "N1").forEach { level ->
+                    FilterChip(
+                        onClick = { /* Update filter */ },
+                        label = { Text(level) },
+                        selected = false
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Font Size
+            Text("Font Size: ${preferences.fontSize}", style = MaterialTheme.typography.bodyMedium)
+            Slider(
+                value = preferences.fontSize.toFloat(),
+                onValueChange = { 
+                    onUpdatePreferences(preferences.copy(fontSize = it.toInt()))
+                },
+                valueRange = 12f..24f,
+                steps = 11
+            )
         }
-
-        // Vocabulary List
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "Vocabulary in this text",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                LazyColumn {
-                    items(vocabularyItems) { item ->
-                        VocabularyListItem(
-                            item = item,
-                            onClick = { selectedWord = item }
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-
-    // Vocabulary Detail Dialog
-    selectedWord?.let { word ->
-        VocabularyDetailDialog(
-            vocabularyItem = word,
-            onDismiss = { selectedWord = null }
-        )
-    }
-
-    // Settings Panel
-    if (showSettings) {
-        VocabularyFocusSettingsPanel(
-            preferences = uiState.preferences,
-            onUpdatePreferences = { viewModel.updatePreferences(it) },
-            onDismiss = { showSettings = false }
-        )
-    }
-}
-
-@Composable
-fun VocabularyStatCard(
-    title: String,
-    value: String,
-    color: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-fun VocabularyHighlightedText(
-    text: String,
-    vocabularyItems: List<VocabularyItem>,
-    onWordClick: (VocabularyItem) -> Unit,
-    fontSize: Int
-) {
-    // Simple implementation - in a real app, you'd want more sophisticated text parsing
-    var processedText = text
-    
-    Column {
-        vocabularyItems.forEach { vocab ->
-            if (processedText.contains(vocab.word)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                ) {
-                    Text(
-                        text = vocab.word,
-                        fontSize = fontSize.sp,
-                        modifier = Modifier
-                            .background(
-                                color = when (vocab.difficulty) {
-                                    "Beginner" -> Color(0xFFE8F5E8)
-                                    "Intermediate" -> Color(0xFFFFF3E0)
-                                    "Advanced" -> Color(0xFFFFEBEE)
-                                    else -> Color.Transparent
-                                },
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .clickable { onWordClick(vocab) }
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        color = when (vocab.difficulty) {
-                            "Beginner" -> Color(0xFF2E7D32)
-                            "Intermediate" -> Color(0xFFE65100)
-                            "Advanced" -> Color(0xFFC62828)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                    )
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = text,
-            fontSize = fontSize.sp,
-            lineHeight = (fontSize + 8).sp
-        )
     }
 }
 
@@ -283,14 +275,14 @@ fun VocabularyListItem(
             }
             
             Text(
-                text = item.difficulty,
+                text = item.difficulty.toString(),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier
                     .background(
                         color = when (item.difficulty) {
-                            "Beginner" -> Color(0xFFE8F5E8)
-                            "Intermediate" -> Color(0xFFFFF3E0)
-                            "Advanced" -> Color(0xFFFFEBEE)
+                            1 -> Color(0xFFE8F5E8)
+                            2 -> Color(0xFFFFF3E0)
+                            3 -> Color(0xFFFFEBEE)
                             else -> Color.Gray
                         },
                         shape = RoundedCornerShape(8.dp)

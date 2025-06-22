@@ -122,9 +122,9 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             _uiState.value = _uiState.value.copy(isProcessing = true)
             
             try {
-                val panels = panelSegmentationService.segmentPanels(bitmap)
+                val result = panelSegmentationService.segmentPanels(bitmap)
                 _uiState.value = _uiState.value.copy(
-                    panels = panels,
+                    panels = result.panels,
                     isProcessing = false,
                     error = null
                 )

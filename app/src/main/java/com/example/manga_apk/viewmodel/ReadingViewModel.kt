@@ -3,13 +3,32 @@ package com.example.manga_apk.viewmodel
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.example.manga_apk.data.*
+
+data class ReadingUiState(
+    val preferences: ReadingPreferences = ReadingPreferences(),
+    val content: ReadingContent? = ReadingContent(
+        title = "Sample Reading Content",
+        content = "これは日本語の読書体験のサンプルテキストです。"
+    ),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
 
 class ReadingViewModel : ViewModel() {
     
     private val _readingPreferences = mutableStateOf(ReadingPreferences())
     val readingPreferences: State<ReadingPreferences> = _readingPreferences
+    
+    // Add uiState flow for UI screens
+    private val _uiState = MutableStateFlow(ReadingUiState())
+    val uiState: StateFlow<ReadingUiState> = _uiState.asStateFlow()
     
     private val _readingContent = mutableStateOf(
         ReadingContent(
@@ -25,16 +44,19 @@ class ReadingViewModel : ViewModel() {
     private val _isAutoScrolling = mutableStateOf(false)
     val isAutoScrolling: State<Boolean> = _isAutoScrolling
     
-    fun updateFontSize(size: TextUnit) {
+    private val _showSettings = mutableStateOf(false)
+    val showSettings: State<Boolean> = _showSettings
+    
+    fun updateFontSize(size: Int) {
         _readingPreferences.value = _readingPreferences.value.copy(fontSize = size)
     }
     
-    fun updateLineHeight(height: Float) {
+    fun updateLineHeight(height: Int) {
         _readingPreferences.value = _readingPreferences.value.copy(lineHeight = height)
     }
     
     fun updateTheme(theme: ReadingTheme) {
-        _readingPreferences.value = _readingPreferences.value.copy(backgroundColor = theme)
+        _readingPreferences.value = _readingPreferences.value.copy(theme = theme)
     }
     
     fun updateFontFamily(fontFamily: FontFamily) {
@@ -70,6 +92,10 @@ class ReadingViewModel : ViewModel() {
         _isSettingsVisible.value = !_isSettingsVisible.value
     }
     
+    fun toggleSettings() {
+        _showSettings.value = !_showSettings.value
+    }
+    
     fun loadContent(title: String, content: String) {
         _readingContent.value = ReadingContent(title = title, content = content)
     }
@@ -90,9 +116,9 @@ class ReadingViewModel : ViewModel() {
     
     private fun applyStudyModeDefaults() {
         _readingPreferences.value = _readingPreferences.value.copy(
-            backgroundColor = ReadingTheme.STUDY,
-            fontSize = 18.sp,
-            lineHeight = 1.8f,
+            theme = ReadingTheme.STUDY,
+            fontSize = 18,
+            lineHeight = 28,
             studyModeSettings = StudyModeSettings(
                 highlightNewWords = true,
                 showFurigana = true,
@@ -105,9 +131,9 @@ class ReadingViewModel : ViewModel() {
     
     private fun applySpeedReadingDefaults() {
         _readingPreferences.value = _readingPreferences.value.copy(
-            backgroundColor = ReadingTheme.FOCUS,
-            fontSize = 16.sp,
-            lineHeight = 1.4f,
+            theme = ReadingTheme.FOCUS,
+            fontSize = 16,
+            lineHeight = 22,
             speedReadingSettings = SpeedReadingSettings(
                 wordsPerMinute = 200,
                 enablePacing = true,
@@ -120,9 +146,9 @@ class ReadingViewModel : ViewModel() {
     
     private fun applyImmersiveModeDefaults() {
         _readingPreferences.value = _readingPreferences.value.copy(
-            backgroundColor = ReadingTheme.DARK,
-            fontSize = 17.sp,
-            lineHeight = 1.6f,
+            theme = ReadingTheme.DARK,
+            fontSize = 17,
+            lineHeight = 26,
             immersiveModeSettings = ImmersiveModeSettings(
                 hideUI = true,
                 fullScreenMode = true,
@@ -135,9 +161,9 @@ class ReadingViewModel : ViewModel() {
     
     private fun applyVocabularyFocusDefaults() {
         _readingPreferences.value = _readingPreferences.value.copy(
-            backgroundColor = ReadingTheme.LIGHT,
-            fontSize = 18.sp,
-            lineHeight = 1.7f,
+            theme = ReadingTheme.LIGHT,
+            fontSize = 18,
+            lineHeight = 27,
             vocabularyFocusSettings = VocabularyFocusSettings(
                 highlightLevel = "N5",
                 showDefinitions = true,
@@ -150,9 +176,9 @@ class ReadingViewModel : ViewModel() {
     
     private fun applyNormalModeDefaults() {
         _readingPreferences.value = _readingPreferences.value.copy(
-            backgroundColor = ReadingTheme.LIGHT,
-            fontSize = 16.sp,
-            lineHeight = 1.5f
+            theme = ReadingTheme.LIGHT,
+            fontSize = 16,
+            lineHeight = 24
         )
     }
     
@@ -182,6 +208,11 @@ class ReadingViewModel : ViewModel() {
         _readingPreferences.value = _readingPreferences.value.copy(
             vocabularyFocusSettings = settings
         )
+    }
+    
+    fun updatePreferences(preferences: ReadingPreferences) {
+        _readingPreferences.value = preferences
+        _uiState.value = _uiState.value.copy(preferences = preferences)
     }
     
     companion object {

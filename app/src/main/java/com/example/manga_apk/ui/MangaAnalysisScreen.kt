@@ -118,6 +118,46 @@ fun MangaAnalysisScreen(
                     onNavigateToVocabularyFocus = onNavigateToVocabularyFocus
                 )
             }
+            AnalysisMode.STUDY_MODE -> {
+                // Show study mode specific UI
+                SimpleAnalysisSection(
+                    analysis = uiState.overallAnalysis,
+                    selectedImage = uiState.selectedImage,
+                    isProcessing = uiState.isProcessing,
+                    onAnalyze = viewModel::analyzeWithFallback,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                )
+            }
+            AnalysisMode.SPEED_READING -> {
+                // Show speed reading specific UI
+                SimpleAnalysisSection(
+                    analysis = uiState.overallAnalysis,
+                    selectedImage = uiState.selectedImage,
+                    isProcessing = uiState.isProcessing,
+                    onAnalyze = viewModel::analyzeWithFallback,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                )
+            }
+            AnalysisMode.IMMERSIVE_MODE -> {
+                // Show immersive mode specific UI
+                SimpleAnalysisSection(
+                    analysis = uiState.overallAnalysis,
+                    selectedImage = uiState.selectedImage,
+                    isProcessing = uiState.isProcessing,
+                    onAnalyze = viewModel::analyzeWithFallback,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                )
+            }
+            AnalysisMode.VOCABULARY_FOCUS -> {
+                // Show vocabulary focus specific UI
+                SimpleAnalysisSection(
+                    analysis = uiState.overallAnalysis,
+                    selectedImage = uiState.selectedImage,
+                    isProcessing = uiState.isProcessing,
+                    onAnalyze = viewModel::analyzeWithFallback,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                )
+            }
         }
         
         // Error handling - Enhanced with better visibility

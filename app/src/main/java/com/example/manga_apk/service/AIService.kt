@@ -13,10 +13,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
-import java.util.concurrent.TimeUnit
-import android.util.Base64
 import java.io.ByteArrayOutputStream
-import android.graphics.Bitmap
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -196,14 +193,12 @@ class AIService {
             }
             
             // Use the enhanced analysis with custom prompt
-            when (config) {
-                is OpenAIConfig -> {
-                    val imageData = bitmapToBase64(bitmap)
-                    analyzeWithOpenAIEnhanced(imageData, prompt)
+            when (config.primaryProvider) {
+                AIProvider.OPENAI -> {
+                    analyzeWithOpenAI(bitmap, config.openaiConfig)
                 }
-                is GeminiConfig -> {
-                    val imageData = bitmapToBase64(bitmap)
-                    analyzeWithGeminiEnhanced(imageData, prompt)
+                AIProvider.GEMINI -> {
+                    analyzeWithGemini(bitmap, config.geminiConfig)
                 }
                 else -> analyzeImage(bitmap, config)
             }

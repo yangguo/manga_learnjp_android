@@ -34,9 +34,9 @@ fun ImmersiveModeScreen(
             .fillMaxSize()
             .background(
                 when (uiState.preferences.theme) {
-                    com.example.manga_apk.data.ReadingTheme.Dark -> Color.Black
-                    com.example.manga_apk.data.ReadingTheme.Night -> Color(0xFF0D1117)
-                    com.example.manga_apk.data.ReadingTheme.Sepia -> Color(0xFFF4F1EA)
+                    com.example.manga_apk.data.ReadingTheme.DARK -> Color.Black
+                    com.example.manga_apk.data.ReadingTheme.NIGHT -> Color(0xFF0D1117)
+                    com.example.manga_apk.data.ReadingTheme.SEPIA -> Color(0xFFF4F1EA)
                     else -> MaterialTheme.colorScheme.background
                 }
             )
@@ -86,10 +86,10 @@ fun ImmersiveModeScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        color = when (uiState.preferences.theme) {
-                            com.example.manga_apk.data.ReadingTheme.Dark, 
-                            com.example.manga_apk.data.ReadingTheme.Night -> Color.White
-                            com.example.manga_apk.data.ReadingTheme.Sepia -> Color(0xFF5D4E37)
+                        color =                        when (uiState.preferences.theme) {
+                            com.example.manga_apk.data.ReadingTheme.DARK, 
+                            com.example.manga_apk.data.ReadingTheme.NIGHT -> Color.White
+                            com.example.manga_apk.data.ReadingTheme.SEPIA -> Color(0xFF5D4E37)
                             else -> MaterialTheme.colorScheme.onBackground
                         }
                     )
@@ -103,10 +103,10 @@ fun ImmersiveModeScreen(
                         fontSize = (uiState.preferences.fontSize + 4).sp,
                         lineHeight = (uiState.preferences.lineHeight + 8).sp,
                         textAlign = TextAlign.Justify,
-                        color = when (uiState.preferences.theme) {
-                            com.example.manga_apk.data.ReadingTheme.Dark, 
-                            com.example.manga_apk.data.ReadingTheme.Night -> Color.White.copy(alpha = 0.9f)
-                            com.example.manga_apk.data.ReadingTheme.Sepia -> Color(0xFF5D4E37).copy(alpha = 0.8f)
+                        color =                        when (uiState.preferences.theme) {
+                            com.example.manga_apk.data.ReadingTheme.DARK, 
+                            com.example.manga_apk.data.ReadingTheme.NIGHT -> Color.White.copy(alpha = 0.9f)
+                            com.example.manga_apk.data.ReadingTheme.SEPIA -> Color(0xFF5D4E37).copy(alpha = 0.8f)
                             else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                         },
                         modifier = Modifier.padding(horizontal = if (isFullscreen) 32.dp else 16.dp)
@@ -129,10 +129,10 @@ fun ImmersiveModeScreen(
                         Text(
                             text = "${((uiState.content?.progressPercentage ?: 0f) * 100).toInt()}% Complete",
                             style = MaterialTheme.typography.bodySmall,
-                            color = when (uiState.preferences.theme) {
-                                com.example.manga_apk.data.ReadingTheme.Dark, 
-                                com.example.manga_apk.data.ReadingTheme.Night -> Color.White.copy(alpha = 0.6f)
-                                com.example.manga_apk.data.ReadingTheme.Sepia -> Color(0xFF5D4E37).copy(alpha = 0.6f)
+                            color =                            when (uiState.preferences.theme) {
+                                com.example.manga_apk.data.ReadingTheme.DARK, 
+                                com.example.manga_apk.data.ReadingTheme.NIGHT -> Color.White.copy(alpha = 0.6f)
+                                com.example.manga_apk.data.ReadingTheme.SEPIA -> Color(0xFF5D4E37).copy(alpha = 0.6f)
                                 else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             }
                         )
@@ -165,6 +165,7 @@ fun ImmersiveModeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImmersiveModeSettingsPanel(
     preferences: com.example.manga_apk.data.ReadingPreferences,

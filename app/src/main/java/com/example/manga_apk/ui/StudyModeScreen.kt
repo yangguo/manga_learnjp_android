@@ -46,7 +46,7 @@ fun StudyModeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(preferences.backgroundColor.backgroundColor)
+            .background(preferences.theme.backgroundColor)
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -56,7 +56,7 @@ fun StudyModeScreen(
                 title = {
                     Text(
                         "📚 Study Mode",
-                        color = preferences.backgroundColor.textColor
+                        color = preferences.theme.textColor
                     )
                 },
                 actions = {
@@ -66,12 +66,12 @@ fun StudyModeScreen(
                         Icon(
                             Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = preferences.backgroundColor.textColor
+                            tint = preferences.theme.textColor
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = preferences.backgroundColor.backgroundColor
+                    containerColor = preferences.theme.backgroundColor
                 )
             )
             
@@ -225,7 +225,7 @@ fun StudyModeText(
             } else {
                 withStyle(
                     style = SpanStyle(
-                        color = preferences.backgroundColor.textColor
+                        color = preferences.theme.textColor
                     )
                 ) {
                     append(word)
@@ -240,8 +240,8 @@ fun StudyModeText(
     
     Text(
         text = annotatedText,
-        fontSize = preferences.fontSize,
-        lineHeight = preferences.fontSize * preferences.lineHeight,
+        fontSize = preferences.fontSize.sp,
+        lineHeight = preferences.lineHeight.sp,
         textAlign = TextAlign.Justify,
         modifier = Modifier
             .fillMaxWidth()
@@ -255,8 +255,8 @@ fun StudyModeSettingsPanel(
     preferences: ReadingPreferences,
     studySettings: StudyModeSettings,
     onStudySettingsChange: (StudyModeSettings) -> Unit,
-    onFontSizeChange: (androidx.compose.ui.unit.TextUnit) -> Unit,
-    onLineHeightChange: (Float) -> Unit,
+    onFontSizeChange: (Int) -> Unit,
+    onLineHeightChange: (Int) -> Unit,
     onThemeChange: (ReadingTheme) -> Unit,
     onClose: () -> Unit
 ) {
@@ -365,12 +365,12 @@ fun StudyModeSettingsPanel(
             
             // Font size slider
             Text(
-                "Font Size: ${preferences.fontSize.value.toInt()}sp",
+                "Font Size: ${preferences.fontSize}sp",
                 style = MaterialTheme.typography.bodyMedium
             )
             Slider(
-                value = preferences.fontSize.value,
-                onValueChange = { onFontSizeChange(it.sp) },
+                value = preferences.fontSize.toFloat(),
+                onValueChange = { onFontSizeChange(it.toInt()) },
                 valueRange = 12f..24f,
                 steps = 11
             )
@@ -379,13 +379,13 @@ fun StudyModeSettingsPanel(
             
             // Line height slider
             Text(
-                "Line Height: ${String.format("%.1f", preferences.lineHeight)}",
+                "Line Height: ${preferences.lineHeight}px",
                 style = MaterialTheme.typography.bodyMedium
             )
             Slider(
-                value = preferences.lineHeight,
-                onValueChange = onLineHeightChange,
-                valueRange = 1.0f..2.5f,
+                value = preferences.lineHeight.toFloat(),
+                onValueChange = { onLineHeightChange(it.toInt()) },
+                valueRange = 16f..32f,
                 steps = 14
             )
         }

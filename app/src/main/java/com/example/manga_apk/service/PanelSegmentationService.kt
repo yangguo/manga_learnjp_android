@@ -98,9 +98,9 @@ class PanelSegmentationService {
             val b = Color.blue(pixel)
             
             // Enhance contrast
-            val enhancedR = ((r - 128) * 1.2 + 128).coerceIn(0, 255).toInt()
-            val enhancedG = ((g - 128) * 1.2 + 128).coerceIn(0, 255).toInt()
-            val enhancedB = ((b - 128) * 1.2 + 128).coerceIn(0, 255).toInt()
+            val enhancedR = ((r - 128) * 1.2 + 128).coerceIn(0.0, 255.0).toInt()
+            val enhancedG = ((g - 128) * 1.2 + 128).coerceIn(0.0, 255.0).toInt()
+            val enhancedB = ((b - 128) * 1.2 + 128).coerceIn(0.0, 255.0).toInt()
             
             pixels[i] = Color.rgb(enhancedR, enhancedG, enhancedB)
         }

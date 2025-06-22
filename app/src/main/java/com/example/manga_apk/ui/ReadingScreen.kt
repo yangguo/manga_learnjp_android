@@ -58,7 +58,7 @@ fun ReadingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(preferences.backgroundColor.backgroundColor)
+            .background(preferences.theme.backgroundColor)
             .alpha(preferences.brightness)
     ) {
         // Main reading content
@@ -74,8 +74,8 @@ fun ReadingScreen(
                 // Title
                 Text(
                     text = content.title,
-                    fontSize = (preferences.fontSize.value + 4).sp,
-                    color = preferences.backgroundColor.textColor,
+                    fontSize = (preferences.fontSize + 4).sp,
+                    color = preferences.theme.textColor,
                     fontFamily = preferences.fontFamily,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
@@ -88,10 +88,10 @@ fun ReadingScreen(
                 // Content
                 Text(
                     text = content.content,
-                    fontSize = preferences.fontSize,
-                    color = preferences.backgroundColor.textColor,
+                    fontSize = preferences.fontSize.sp,
+                    color = preferences.theme.textColor,
                     fontFamily = preferences.fontFamily,
-                    lineHeight = (preferences.fontSize.value * preferences.lineHeight).sp,
+                    lineHeight = preferences.lineHeight.sp,
                     textAlign = TextAlign.Justify,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -105,8 +105,8 @@ fun ReadingScreen(
                 .fillMaxWidth()
                 .height(2.dp)
                 .align(Alignment.TopCenter),
-            color = preferences.backgroundColor.textColor.copy(alpha = 0.7f),
-            trackColor = preferences.backgroundColor.textColor.copy(alpha = 0.2f)
+            color = preferences.theme.textColor.copy(alpha = 0.7f),
+            trackColor = preferences.theme.textColor.copy(alpha = 0.2f)
         )
         
         // Settings panel
@@ -138,7 +138,7 @@ fun ReadingScreen(
                     .align(Alignment.BottomCenter)
                     .padding(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = preferences.backgroundColor.textColor.copy(alpha = 0.9f)
+                    containerColor = preferences.theme.textColor.copy(alpha = 0.9f)
                 )
             ) {
                 Row(
@@ -148,13 +148,13 @@ fun ReadingScreen(
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = "Auto-scrolling",
-                        tint = preferences.backgroundColor.backgroundColor,
+                        tint = preferences.theme.backgroundColor,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "Auto-scrolling",
-                        color = preferences.backgroundColor.backgroundColor,
+                        color = preferences.theme.backgroundColor,
                         fontSize = 12.sp
                     )
                 }

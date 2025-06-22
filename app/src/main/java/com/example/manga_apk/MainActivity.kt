@@ -127,21 +127,24 @@ fun MangaApp() {
         composable("speed_reading") {
             val viewModel: ReadingViewModel = viewModel()
             SpeedReadingScreen(
-                viewModel = viewModel
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         
         composable("immersive_mode") {
             val viewModel: ReadingViewModel = viewModel()
             ImmersiveModeScreen(
-                viewModel = viewModel
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         
         composable("vocabulary_focus") {
             val viewModel: ReadingViewModel = viewModel()
             VocabularyFocusScreen(
-                viewModel = viewModel
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

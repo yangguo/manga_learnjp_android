@@ -41,7 +41,8 @@ fun MangaAnalysisScreen(
     onNavigateToStudyMode: () -> Unit = {},
     onNavigateToSpeedReading: () -> Unit = {},
     onNavigateToImmersiveMode: () -> Unit = {},
-    onNavigateToVocabularyFocus: () -> Unit = {}
+    onNavigateToVocabularyFocus: () -> Unit = {},
+    onNavigateToDebugLog: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -67,6 +68,9 @@ fun MangaAnalysisScreen(
                 )
             },
             actions = {
+                IconButton(onClick = onNavigateToDebugLog) {
+                    Icon(Icons.Default.BugReport, contentDescription = "Debug Logs")
+                }
                 IconButton(onClick = onNavigateToSettings) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings")
                 }

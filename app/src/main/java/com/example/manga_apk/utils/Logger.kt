@@ -1,6 +1,7 @@
 package com.example.manga_apk.utils
 
 import android.util.Log
+import com.example.manga_apk.ui.DebugLogCollector
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,8 +40,10 @@ object Logger {
         val formattedMessage = formatMessage(category, message)
         if (throwable != null) {
             Log.v(TAG, formattedMessage, throwable)
+            DebugLogCollector.addLog("VERBOSE", "$formattedMessage\n${throwable.stackTraceToString()}")
         } else {
             Log.v(TAG, formattedMessage)
+            DebugLogCollector.addLog("VERBOSE", formattedMessage)
         }
     }
     
@@ -49,8 +52,10 @@ object Logger {
         val formattedMessage = formatMessage(category, message)
         if (throwable != null) {
             Log.d(TAG, formattedMessage, throwable)
+            DebugLogCollector.addLog("DEBUG", "$formattedMessage\n${throwable.stackTraceToString()}")
         } else {
             Log.d(TAG, formattedMessage)
+            DebugLogCollector.addLog("DEBUG", formattedMessage)
         }
     }
     
@@ -59,8 +64,10 @@ object Logger {
         val formattedMessage = formatMessage(category, message)
         if (throwable != null) {
             Log.i(TAG, formattedMessage, throwable)
+            DebugLogCollector.addLog("INFO", "$formattedMessage\n${throwable.stackTraceToString()}")
         } else {
             Log.i(TAG, formattedMessage)
+            DebugLogCollector.addLog("INFO", formattedMessage)
         }
     }
     
@@ -69,8 +76,10 @@ object Logger {
         val formattedMessage = formatMessage(category, message)
         if (throwable != null) {
             Log.w(TAG, formattedMessage, throwable)
+            DebugLogCollector.addLog("WARN", "$formattedMessage\n${throwable.stackTraceToString()}")
         } else {
             Log.w(TAG, formattedMessage)
+            DebugLogCollector.addLog("WARN", formattedMessage)
         }
     }
     
@@ -79,8 +88,10 @@ object Logger {
         val formattedMessage = formatMessage(category, message)
         if (throwable != null) {
             Log.e(TAG, formattedMessage, throwable)
+            DebugLogCollector.addLog("ERROR", "$formattedMessage\n${throwable.stackTraceToString()}")
         } else {
             Log.e(TAG, formattedMessage)
+            DebugLogCollector.addLog("ERROR", formattedMessage)
         }
     }
     

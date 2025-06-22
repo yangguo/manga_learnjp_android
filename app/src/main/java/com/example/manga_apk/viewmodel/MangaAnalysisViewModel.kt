@@ -364,46 +364,33 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     fun quickAnalysis() {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "quickAnalysis")
-        println("ViewModel: quickAnalysis() called")
-        android.util.Log.d("MangaLearnJP", "ViewModel: quickAnalysis() called")
         
         if (_uiState.value.selectedImage == null) {
-            val errorMsg = "No image selected for analysis."
-            Logger.logError("quickAnalysis", errorMsg)
-            println("ViewModel: ERROR - $errorMsg")
-            android.util.Log.e("MangaLearnJP", "ViewModel: $errorMsg")
-            _uiState.value = _uiState.value.copy(error = errorMsg)
+            Logger.logError("quickAnalysis", "No image selected")
+            _uiState.value = _uiState.value.copy(
+                error = "Please select an image first"
+            )
             return
         }
         
-        println("ViewModel: Setting mode to SIMPLE_ANALYSIS")
-        android.util.Log.d("MangaLearnJP", "ViewModel: Setting mode to SIMPLE_ANALYSIS")
-        setMode(AnalysisMode.SIMPLE_ANALYSIS)
+        Logger.logStateChange("MangaAnalysisViewModel", "currentMode", "SIMPLE_ANALYSIS")
+        _uiState.value = _uiState.value.copy(
+            currentMode = AnalysisMode.SIMPLE_ANALYSIS,
+            error = null
+        )
         
-        println("ViewModel: Calling analyzeWithFallback()")
-        android.util.Log.d("MangaLearnJP", "ViewModel: Calling analyzeWithFallback()")
+        Logger.d(Logger.Category.VIEWMODEL, "Starting analysis with fallback")
         analyzeWithFallback()
     }
 
     fun analyzeWithFallback() {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeWithFallback")
-        println("ViewModel: analyzeWithFallback() starting")
-        android.util.Log.d("MangaLearnJP", "ViewModel: analyzeWithFallback() starting")
-        
         viewModelScope.launch {
             try {
-                println("ViewModel: Inside viewModelScope.launch")
-                android.util.Log.d("MangaLearnJP", "ViewModel: Inside viewModelScope.launch")
-                
-                // This is essentially the same as analyzeFullImage but with explicit fallback enabled
+                Logger.d(Logger.Category.VIEWMODEL, "Calling analyzeFullImage from analyzeWithFallback")
                 analyzeFullImage()
-                
-                println("ViewModel: analyzeFullImage() completed")
-                android.util.Log.d("MangaLearnJP", "ViewModel: analyzeFullImage() completed")
             } catch (e: Exception) {
                 Logger.logError("analyzeWithFallback", e)
-                println("ViewModel: Exception in analyzeWithFallback: ${e.message}")
-                android.util.Log.e("MangaLearnJP", "ViewModel: Exception in analyzeWithFallback", e)
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
                     error = "Analysis failed: ${e.message}"

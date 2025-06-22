@@ -70,6 +70,9 @@ fun MangaApp() {
                 },
                 onNavigateToVocabularyFocus = {
                     navController.navigate("vocabulary_focus")
+                },
+                onNavigateToDebugLog = {
+                    navController.navigate("debug_log")
                 }
             )
         }
@@ -144,6 +147,12 @@ fun MangaApp() {
             val viewModel: ReadingViewModel = viewModel()
             VocabularyFocusScreen(
                 viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        
+        composable("debug_log") {
+            DebugLogScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

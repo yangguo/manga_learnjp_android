@@ -6,13 +6,17 @@ import com.example.manga_apk.data.*
 import com.example.manga_apk.utils.Logger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import android.graphics.Bitmap
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -24,7 +28,44 @@ class AIService {
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
+    
     private val gson = Gson()
+    
+    // Enhanced prompts for better manga analysis
+    private val mangaAnalysisPrompt = """
+        You are an expert Japanese language tutor specializing in manga analysis. 
+        Analyze the provided manga panel image and extract Japanese text with detailed linguistic analysis.
+        
+        For each text element found, provide:
+        1. Original Japanese text (exact transcription)
+        2. Hiragana reading (furigana)
+        3. English translation
+        4. Vocabulary breakdown with readings and meanings
+        5. Grammar patterns and structures
+        6. Cultural context and nuances
+        7. Difficulty level (N5-N1)
+        8. Learning notes for Japanese learners
+        
+        Focus on:
+        - Accurate OCR of Japanese characters (hiragana, katakana, kanji)
+        - Speech bubbles and text boxes
+        - Sound effects (onomatopoeia)
+        - Background text and signs
+        - Character emotions and context
+        
+        Return the analysis in JSON format matching the TextAnalysis structure.
+    """.trimIndent()
+    
+    private val vocabularyFocusPrompt = """
+        Focus specifically on vocabulary extraction and learning from this manga panel.
+        Identify all Japanese words and provide:
+        - Kanji with furigana
+        - Word type (noun, verb, adjective, etc.)
+        - JLPT level
+        - Common usage examples
+        - Related words and compounds
+        - Memory aids and mnemonics
+    """.trimIndent()
     
     init {
         Logger.i(Logger.Category.AI_SERVICE, "Initialized with client: ${client.javaClass.simpleName}")
@@ -140,6 +181,45 @@ class AIService {
         }
     }
     
+    suspend fun analyzeImageEnhanced(
+        bitmap: Bitmap,
+        config: AIConfig,
+        analysisType: AnalysisType = AnalysisType.COMPREHENSIVE
+    ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
+        try {
+            Logger.i(Logger.Category.AI_SERVICE, "Starting enhanced analysis with type: ${analysisType.name}")
+            
+            val prompt = when (analysisType) {
+                AnalysisType.COMPREHENSIVE -> mangaAnalysisPrompt
+                AnalysisType.VOCABULARY_FOCUS -> vocabularyFocusPrompt
+                AnalysisType.QUICK_TRANSLATION -> "Provide quick Japanese text extraction and translation from this manga panel."
+            }
+            
+            // Use the enhanced analysis with custom prompt
+            when (config) {
+                is OpenAIConfig -> {
+                    val imageData = bitmapToBase64(bitmap)
+                    analyzeWithOpenAIEnhanced(imageData, prompt)
+                }
+                is GeminiConfig -> {
+                    val imageData = bitmapToBase64(bitmap)
+                    analyzeWithGeminiEnhanced(imageData, prompt)
+                }
+                else -> analyzeImage(bitmap, config)
+            }
+        } catch (e: Exception) {
+            Logger.logError("analyzeImageEnhanced", e)
+            // Fallback to basic analysis
+            analyzeImage(bitmap, config)
+        }
+    }
+    
+    enum class AnalysisType {
+        COMPREHENSIVE,
+        VOCABULARY_FOCUS,
+        QUICK_TRANSLATION
+    }
+    
     private suspend fun analyzeWithOpenAI(
         bitmap: Bitmap,
         config: OpenAIConfig
@@ -172,7 +252,7 @@ class AIService {
                 mapOf(
                     "role" to "user",
                     "content" to listOf(
-                        mapOf("type" to "text", "text" to MANGA_ANALYSIS_PROMPT),
+                        mapOf("type" to "text", "text" to mangaAnalysisPrompt),
                         mapOf(
                             "type" to "image_url",
                             "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
@@ -181,6 +261,7 @@ class AIService {
                 )
             )))
             addProperty("max_tokens", 4000)
+            addProperty("temperature", 0.3)
         }
         
         Logger.i(Logger.Category.AI_SERVICE, "Request body prepared")
@@ -319,7 +400,7 @@ class AIService {
             add("contents", gson.toJsonTree(listOf(
                 mapOf(
                     "parts" to listOf(
-                        mapOf("text" to MANGA_ANALYSIS_PROMPT),
+                        mapOf("text" to mangaAnalysisPrompt),
                         mapOf(
                             "inline_data" to mapOf(
                                 "mime_type" to "image/jpeg",
@@ -327,6 +408,22 @@ class AIService {
                             )
                         )
                     )
+                )
+            )))
+            add("generationConfig", gson.toJsonTree(mapOf(
+                "temperature" to 0.3,
+                "topK" to 32,
+                "topP" to 1,
+                "maxOutputTokens" to 2048
+            )))
+            add("safetySettings", gson.toJsonTree(listOf(
+                mapOf(
+                    "category" to "HARM_CATEGORY_HARASSMENT",
+                    "threshold" to "BLOCK_MEDIUM_AND_ABOVE"
+                ),
+                mapOf(
+                    "category" to "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold" to "BLOCK_MEDIUM_AND_ABOVE"
                 )
             )))
         }
@@ -344,9 +441,11 @@ class AIService {
                 parseGeminiResponse(responseBody)
             } else {
                 val errorBody = response.body?.string()
+                Logger.logError("analyzeWithGemini", "Gemini API error: ${response.code} - $errorBody")
                 Result.failure(IOException("Gemini API call failed: ${response.code} - $errorBody"))
             }
         } catch (e: Exception) {
+            Logger.logError("analyzeWithGemini", e)
             Result.failure(IOException("Network error: ${e.message}", e))
         }
     }
@@ -434,20 +533,106 @@ class AIService {
         }
     }
     
+    private fun parseOpenAIResponseEnhanced(responseBody: String): TextAnalysis {
+        try {
+            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            
+            // Check for errors first
+            if (jsonResponse.has("error")) {
+                val error = jsonResponse.getAsJsonObject("error")
+                val errorMessage = error.get("message").asString
+                Logger.logError("parseOpenAIResponseEnhanced", "OpenAI API error: $errorMessage")
+                return createFallbackAnalysis("API Error: $errorMessage")
+            }
+            
+            val choices = jsonResponse.getAsJsonArray("choices")
+            if (choices.size() == 0) {
+                return createFallbackAnalysis("No choices in response")
+            }
+            
+            val content = choices[0].asJsonObject
+                .getAsJsonObject("message")
+                .get("content").asString
+            
+            // Enhanced parsing with better error handling
+            return parseAnalysisContentEnhanced(content)
+        } catch (e: Exception) {
+            Logger.logError("parseOpenAIResponseEnhanced", e)
+            return createFallbackAnalysis("Failed to parse enhanced response: ${e.message}")
+        }
+    }
+    
     private fun parseGeminiResponse(responseBody: String?): Result<TextAnalysis> {
         return try {
+            if (responseBody == null) {
+                return Result.failure(IOException("Empty response body"))
+            }
+            
             val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
-            val content = jsonResponse
-                .getAsJsonArray("candidates")
-                .get(0).asJsonObject
+            
+            if (jsonResponse.has("error")) {
+                val error = jsonResponse.getAsJsonObject("error")
+                val message = error.get("message").asString
+                return Result.failure(IOException("Gemini API error: $message"))
+            }
+            
+            val candidates = jsonResponse.getAsJsonArray("candidates")
+            if (candidates.size() == 0) {
+                return Result.failure(IOException("No candidates in response"))
+            }
+            
+            val content = candidates[0].asJsonObject
                 .getAsJsonObject("content")
-                .getAsJsonArray("parts")
-                .get(0).asJsonObject
+                .getAsJsonArray("parts")[0].asJsonObject
                 .get("text").asString
             
             parseAnalysisContent(content)
         } catch (e: Exception) {
-            Result.failure(e)
+            Logger.logError("parseGeminiResponse", e)
+            Result.failure(IOException("Failed to parse Gemini response: ${e.message}", e))
+        }
+    }
+    
+    private fun parseGeminiResponseEnhanced(responseBody: String): TextAnalysis {
+        try {
+            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            
+            // Enhanced error checking
+            if (jsonResponse.has("error")) {
+                val error = jsonResponse.getAsJsonObject("error")
+                val message = error.get("message").asString
+                val code = if (error.has("code")) error.get("code").asInt else 0
+                Logger.logError("parseGeminiResponseEnhanced", "Gemini API error [$code]: $message")
+                return createFallbackAnalysis("Gemini API error: $message")
+            }
+            
+            val candidates = jsonResponse.getAsJsonArray("candidates")
+            if (candidates.size() == 0) {
+                return createFallbackAnalysis("No candidates in Gemini response")
+            }
+            
+            val candidate = candidates[0].asJsonObject
+            
+            // Check for content filtering
+            if (candidate.has("finishReason")) {
+                val finishReason = candidate.get("finishReason").asString
+                if (finishReason != "STOP") {
+                    Logger.w(Logger.Category.AI_SERVICE, "Gemini response finished with reason: $finishReason")
+                    if (finishReason == "SAFETY") {
+                        return createFallbackAnalysis("Content was filtered for safety reasons")
+                    }
+                }
+            }
+            
+            val content = candidate.getAsJsonObject("content")
+                .getAsJsonArray("parts")[0].asJsonObject
+                .get("text").asString
+            
+            // Use enhanced parsing
+            return parseAnalysisContentEnhanced(content)
+        } catch (e: Exception) {
+            Logger.logError("parseGeminiResponseEnhanced", e)
+            return createFallbackAnalysis("Failed to parse enhanced Gemini response: ${e.message}")
         }
     }
     
@@ -479,6 +664,118 @@ class AIService {
             Logger.i(Logger.Category.AI_SERVICE, "Created fallback analysis")
             Result.success(fallbackAnalysis)
         }
+    }
+    
+    private fun parseAnalysisContentEnhanced(content: String): TextAnalysis {
+        return try {
+            // First, try to extract JSON from the content if it's wrapped in markdown
+            val jsonContent = if (content.contains("```json")) {
+                content.substringAfter("```json")
+                    .substringBefore("```")
+                    .trim()
+            } else if (content.contains("```")) {
+                content.substringAfter("```")
+                    .substringBefore("```")
+                    .trim()
+            } else {
+                content.trim()
+            }
+            
+            // Try to parse as JSON
+            gson.fromJson(jsonContent, TextAnalysis::class.java)
+        } catch (e: JsonSyntaxException) {
+            Logger.w(Logger.Category.AI_SERVICE, "Enhanced JSON parsing failed, using intelligent fallback")
+            
+            // Enhanced fallback parsing with better text extraction
+            parseContentIntelligently(content)
+        } catch (e: Exception) {
+            Logger.logError("parseAnalysisContentEnhanced", e)
+            createFallbackAnalysis("Enhanced parsing failed: ${e.message}")
+        }
+    }
+    
+    private fun parseContentIntelligently(content: String): TextAnalysis {
+        val lines = content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+        
+        // Enhanced text extraction patterns
+        val originalText = extractField(lines, listOf("original", "japanese", "text", "原文"))
+        val translation = extractField(lines, listOf("translation", "english", "meaning", "翻訳"))
+        val context = extractField(lines, listOf("context", "situation", "scene", "文脈"))
+        
+        // Extract vocabulary if present
+        val vocabulary = extractVocabularyFromText(content)
+        val grammarPatterns = extractGrammarFromText(content)
+        
+        return TextAnalysis(
+            originalText = originalText,
+            translation = translation,
+            vocabulary = vocabulary,
+            grammarPatterns = grammarPatterns,
+            context = context
+        )
+    }
+    
+    private fun extractField(lines: List<String>, keywords: List<String>): String {
+        for (keyword in keywords) {
+            val line = lines.find { it.contains(keyword, ignoreCase = true) && it.contains(":") }
+            if (line != null) {
+                return line.substringAfter(":")
+                    .trim()
+                    .removeSurrounding("\"", "\"")
+                    .removeSurrounding("'", "'")
+            }
+        }
+        return "Not found"
+    }
+    
+    private fun extractVocabularyFromText(content: String): List<VocabularyItem> {
+        // Simple vocabulary extraction - can be enhanced
+        val vocabSection = content.substringAfter("vocabulary", "")
+            .substringAfter("words", "")
+            .take(500) // Limit to avoid processing too much
+        
+        return vocabSection.split("\n")
+            .filter { it.contains(":") || it.contains("-") }
+            .take(10) // Limit vocabulary items
+            .map { line ->
+                VocabularyItem(
+                    word = line.substringBefore(":").substringBefore("-").trim(),
+                    reading = "Unknown",
+                    meaning = line.substringAfter(":").substringAfter("-").trim(),
+                    partOfSpeech = "Unknown",
+                    jlptLevel = "Unknown",
+                    difficulty = 3
+                )
+            }
+    }
+    
+    private fun extractGrammarFromText(content: String): List<GrammarPattern> {
+        // Simple grammar pattern extraction
+        val grammarSection = content.substringAfter("grammar", "")
+            .substringAfter("pattern", "")
+            .take(300)
+        
+        return grammarSection.split("\n")
+            .filter { it.isNotBlank() && it.length > 5 }
+            .take(5)
+            .map { pattern ->
+                GrammarPattern(
+                    pattern = pattern.trim(),
+                    explanation = "Grammar pattern found in text",
+                    example = pattern.trim(),
+                    difficulty = "intermediate"
+                )
+            }
+    }
+    
+    private fun createFallbackAnalysis(errorMessage: String): TextAnalysis {
+        return TextAnalysis(
+            originalText = "Analysis failed",
+            vocabulary = emptyList(),
+            grammarPatterns = emptyList(),
+            translation = "Unable to analyze image",
+            context = errorMessage
+        )
     }
     
     private fun bitmapToBase64(bitmap: Bitmap): String {

@@ -9,20 +9,46 @@
 - Nothing happens, no error message
 - App appears frozen or unresponsive
 
+**Root Cause Analysis:**
+The most common cause is that **no AI providers are configured**. The app requires at least one API key to be set up before analysis can work.
+
 **Debugging Steps:**
 
-#### Step 1: Check Error Messages
-- Look for red error cards in the app UI
-- Enhanced error messages now show specific issues
-- Error cards include detailed troubleshooting steps
-
-#### Step 2: Check Android Logs (Logcat)
-```bash
-# Filter logs for this app
-adb logcat -s MangaLearnJP
-
-# Or use Android Studio Logcat with filter: "MangaLearnJP"
+#### Step 1: Check Logs
+If you have access to Android Studio or adb, check the logs for:
 ```
+adb logcat -s MangaLearnJP
+```
+
+Look for these log messages:
+- `UI: Quick AI Analysis button clicked` - Confirms button click is registered
+- `ViewModel: quickAnalysis() called` - Confirms ViewModel method is called
+- `ViewModel: validateAnalysisPrerequisites() called` - Confirms validation starts
+- `ViewModel: Validation failed` - Shows what validation failed
+
+#### Step 2: Most Common Issue - No API Keys Configured
+
+**Problem:** No AI providers are configured
+**Solution:** Configure at least one API provider:
+
+1. **Go to Settings** (gear icon in top-right)
+2. **Configure at least one provider:**
+
+   **Option A: OpenAI (Recommended)**
+   - Get API key from https://platform.openai.com/api-keys
+   - Enter in "OpenAI API Key" field
+   - Default models (gpt-4o for vision) should work
+
+   **Option B: Google Gemini**
+   - Get API key from https://aistudio.google.com/app/apikey
+   - Enter in "Gemini API Key" field
+
+   **Option C: Custom OpenAI-Compatible API**
+   - Enter your custom endpoint URL
+   - Enter your API key
+   - Specify the model name
+
+3. **Save settings** and try analysis again
 
 #### Step 3: Verify Prerequisites
 - ✅ **Image Selected**: Make sure you've uploaded an image
@@ -30,118 +56,128 @@ adb logcat -s MangaLearnJP
 - ✅ **Internet Connection**: Check network connectivity
 - ✅ **Valid API Key**: Ensure API key is correct and has permissions
 
-### 2. API Configuration Issues
-
-#### OpenAI Setup
-1. **Get API Key**: Visit https://platform.openai.com/api-keys
-2. **Required Access**: Your account needs GPT-4 Vision access
-3. **Billing**: Ensure your OpenAI account has billing set up
-4. **Key Format**: Should start with `sk-` and be ~51 characters long
-
-#### Google Gemini Setup
-1. **Get API Key**: Visit https://makersuite.google.com/app/apikey
-2. **Enable API**: Make sure Gemini API is enabled in Google Cloud
-3. **Quota**: Check your API quota and usage limits
-
-#### Custom API Setup
-1. **Endpoint URL**: Must be a valid OpenAI-compatible API endpoint
-2. **Model Name**: Specify the correct model name for your API
-3. **Authentication**: Ensure your API key works with the endpoint
-
-### 3. Network and Connection Issues
-
-#### Common Error Messages:
-- **"Request Timeout"**: API call took too long
-- **"Connection Failed"**: Cannot reach API servers
-- **"Network Error"**: DNS or routing issues
-- **"Authentication Failed (401)"**: Invalid API key
-- **"Access Forbidden (403)"**: API key lacks permissions
-- **"Rate Limit Exceeded (429)"**: Too many requests
-
-#### Solutions:
-1. **Check Internet**: Verify you have a stable internet connection
-2. **Try Different Network**: Switch between WiFi and mobile data
-3. **Firewall/VPN**: Disable VPN or check firewall settings
-4. **Image Size**: Try with a smaller image (< 2MB recommended)
-5. **Wait and Retry**: For rate limits, wait a few minutes
-
-### 4. Image Processing Issues
-
-#### Supported Formats:
-- ✅ JPEG (.jpg, .jpeg)
-- ✅ PNG (.png)
-- ✅ WebP (.webp)
-
-#### Recommendations:
-- **Size**: Keep images under 5MB for best performance
-- **Resolution**: 1024x1024 or smaller works well
-- **Quality**: Clear, high-contrast text works best
-- **Language**: Japanese text should be clearly visible
-
-### 5. Detailed Logging
-
-The app now includes comprehensive logging. To view logs:
-
-#### Using Android Studio:
-1. Connect your device
-2. Open Logcat
-3. Filter by "MangaLearnJP"
-4. Look for entries with categories:
-   - `[UI]` - User interface events
-   - `[VM]` - ViewModel actions
-   - `[AI]` - AI service calls
-   - `[NET]` - Network requests
-   - `[IMG]` - Image processing
-   - `[CFG]` - Configuration changes
-   - `[ERR]` - Errors
-   - `[DBG]` - Debug information
-
-#### Using ADB:
-```bash
-# Real-time logs
-adb logcat -s MangaLearnJP
-
-# Save logs to file
-adb logcat -s MangaLearnJP > manga_app_logs.txt
-
-# Clear logs and start fresh
-adb logcat -c && adb logcat -s MangaLearnJP
+#### Step 4: Test Network Connection
+The app includes a network test. Check logs for:
+```
+ViewModel: Network test result: true/false
 ```
 
-### 6. Performance Issues
+#### Step 5: Check API Key Validation
+Look for these error patterns in logs:
+- `OpenAI API key is not configured`
+- `No AI providers configured`
+- `All configured providers failed`
 
-#### If the app is slow:
-1. **Image Size**: Reduce image resolution
-2. **Memory**: Close other apps to free up RAM
-3. **Storage**: Ensure device has sufficient storage
-4. **Network**: Use a faster internet connection
+### 2. Analysis Fails with Error Message
+
+**Symptoms:**
+- Error message appears in red box
+- Analysis stops immediately
+
+**Common Error Messages:**
+
+#### "❌ No image selected. Please upload an image first."
+**Solution:** Upload an image before clicking analyze
+
+#### "❌ No AI providers configured. Please set up at least one API key in Settings"
+**Solution:** Follow Step 2 above to configure API keys
+
+#### "Analysis failed: [API Error]"
+**Possible causes:**
+- Invalid API key
+- API quota exceeded
+- Network connectivity issues
+- API service temporarily down
+
+**Solutions:**
+1. Verify API key is correct
+2. Check API usage/billing status
+3. Try different provider (enable fallback in settings)
+4. Check internet connection
+
+### 3. Image Upload Issues
+
+**Symptoms:**
+- Can't select image
+- Image doesn't appear after selection
+- "Failed to load image" error
+
+**Solutions:**
+1. **Check file format**: Supports PNG, JPG, WebP
+2. **Check file size**: Very large images may cause issues
+3. **Check permissions**: App needs storage access
+4. **Try different image**: Test with a smaller, simpler image
+
+### 4. Performance Issues
+
+**Symptoms:**
+- Analysis takes very long time
+- App becomes unresponsive
+- Out of memory errors
+
+**Solutions:**
+1. **Reduce image size**: Use smaller images (< 2MB recommended)
+2. **Close other apps**: Free up device memory
+3. **Check network**: Slow connection affects API calls
+4. **Try different provider**: Some APIs are faster than others
+
+### 5. Panel Segmentation Issues
+
+**Symptoms:**
+- Panels not detected correctly
+- Wrong reading order
+- Missing panels
+
+**Solutions:**
+1. **Use high-contrast images**: Clear panel borders work better
+2. **Try different manga styles**: Some layouts work better than others
+3. **Use manual mode**: If auto-detection fails, use simple analysis
+
+### 6. API-Specific Issues
+
+#### OpenAI Issues:
+- **Rate limits**: Wait and retry
+- **Model availability**: Ensure gpt-4o is available in your region
+- **Billing**: Check account has credits
+
+#### Gemini Issues:
+- **Regional availability**: Gemini not available in all regions
+- **Content policies**: Some manga content may be filtered
+- **API limits**: Check quota usage
+
+#### Custom API Issues:
+- **Endpoint format**: Must be OpenAI-compatible
+- **Authentication**: Check API key format
+- **Model support**: Ensure vision models are supported
 
 ### 7. Getting Help
-
-When reporting issues, please include:
-
-1. **Error Message**: Full text from the error card
-2. **Logs**: Relevant entries from Logcat
-3. **Steps**: What you were doing when the issue occurred
-4. **Device Info**: Android version, device model
-5. **Image Info**: Size, format, content type
-6. **API Provider**: Which AI service you're using
 
 #### Log Examples to Look For:
 
 **Successful Analysis:**
 ```
-MangaLearnJP: [VM] Action: Starting full image analysis
-MangaLearnJP: [AI] Provider: OPENAI, Action: analyzeImage
-MangaLearnJP: [NET] Making API request to OpenAI
-MangaLearnJP: [NET] Response received, status: 200
-MangaLearnJP: [AI] Analysis successful
+UI: Quick AI Analysis button clicked
+ViewModel: quickAnalysis() called
+ViewModel: validateAnalysisPrerequisites() called
+ViewModel: All validations passed
+AIService: Starting analyzeImage
+AIService: Analysis successful with provider: OPENAI
 ```
 
-**Failed Analysis:**
+**Failed Analysis (No API Key):**
 ```
-MangaLearnJP: [ERR] Error in analyzeWithOpenAI: API call failed with status 401
-MangaLearnJP: [ERR] Error body: {"error": {"message": "Invalid API key"}}
+UI: Quick AI Analysis button clicked
+ViewModel: quickAnalysis() called
+ViewModel: validateAnalysisPrerequisites() called
+ViewModel: Validation failed - ❌ No AI providers configured
+```
+
+**Failed Analysis (API Error):**
+```
+UI: Quick AI Analysis button clicked
+ViewModel: quickAnalysis() called
+AIService: Starting analyzeImage
+AIService: Analysis failed with provider: OPENAI - Invalid API key
 ```
 
 ### 8. Quick Troubleshooting Checklist
@@ -149,28 +185,37 @@ MangaLearnJP: [ERR] Error body: {"error": {"message": "Invalid API key"}}
 - [ ] Image is selected and visible in the app
 - [ ] At least one API key is configured in Settings
 - [ ] Internet connection is working
-- [ ] API key is valid and has proper permissions
-- [ ] No firewall blocking the connection
-- [ ] Sufficient device storage and memory
+- [ ] API key is valid and has credits/quota
 - [ ] App has necessary permissions
-- [ ] Latest version of the app is installed
+- [ ] Device has sufficient memory
+- [ ] No firewall blocking API requests
 
 ### 9. Advanced Debugging
 
-For developers or advanced users:
+If issues persist:
 
-#### Enable Verbose Logging:
-The app automatically logs detailed information. Check these log categories:
+1. **Enable verbose logging** in the app
+2. **Check device logs** with Android Studio
+3. **Test with minimal image** (small, simple manga panel)
+4. **Try different API provider** to isolate the issue
+5. **Check API status pages** for service outages
 
-- **Function Entry/Exit**: Track method calls
-- **State Changes**: Monitor UI state transitions
-- **Network Requests**: Full request/response details
-- **Performance Metrics**: Timing information
-- **Configuration Changes**: Settings modifications
+### 10. Recent Updates (Debugging Improvements)
 
-#### Common Code Paths:
-1. `quickAnalysis()` → `validateAnalysisPrerequisites()` → `analyzeFullImage()`
-2. `analyzeFullImage()` → `AIService.analyzeImage()` → `analyzeWithOpenAI()`
-3. Error handling → UI state update → Error card display
+The app now includes enhanced logging to help identify issues:
+- Button click tracking
+- Validation step logging
+- API call tracing
+- Error message improvements
 
-This enhanced debugging system should help identify exactly where issues occur in the analysis pipeline.
+These logs will help identify exactly where the analysis process fails.
+
+---
+
+## Contact Support
+
+If you continue experiencing issues after following this guide:
+1. Include relevant log messages
+2. Describe your device and Android version
+3. Specify which API provider you're using
+4. Include steps to reproduce the issue

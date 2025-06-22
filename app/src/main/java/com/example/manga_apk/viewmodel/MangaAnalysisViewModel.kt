@@ -22,7 +22,11 @@ enum class AnalysisMode {
     UPLOAD,
     PANEL_ANALYSIS,
     SIMPLE_ANALYSIS,
-    READING_MODE
+    READING_MODE,
+    STUDY_MODE,
+    SPEED_READING,
+    IMMERSIVE_MODE,
+    VOCABULARY_FOCUS
 }
 
 data class MangaAnalysisUiState(
@@ -187,22 +191,36 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     private fun validateAnalysisPrerequisites(): String? {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "validateAnalysisPrerequisites")
+        println("ViewModel: validateAnalysisPrerequisites() called")
+        android.util.Log.d("MangaLearnJP", "ViewModel: validateAnalysisPrerequisites() called")
         
         // Check if image is selected
         val bitmap = _uiState.value.selectedImage
+        println("ViewModel: Image check - bitmap is ${if (bitmap != null) "not null (${bitmap.width}x${bitmap.height})" else "null"}")
+        android.util.Log.d("MangaLearnJP", "ViewModel: Image check - bitmap is ${if (bitmap != null) "not null (${bitmap.width}x${bitmap.height})" else "null"}")
+        
         if (bitmap == null) {
-            return "❌ No image selected. Please upload an image first."
+            val errorMsg = "❌ No image selected. Please upload an image first."
+            println("ViewModel: Validation failed - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "ViewModel: Validation failed - $errorMsg")
+            return errorMsg
         }
         
         // Check AI configuration
         val currentConfig = _uiState.value.aiConfig
         val configuredProviders = currentConfig.getConfiguredProviders()
         
+        println("ViewModel: AI Config check - Primary provider: ${currentConfig.primaryProvider}, Configured providers: $configuredProviders")
+        android.util.Log.d("MangaLearnJP", "ViewModel: AI Config check - Primary provider: ${currentConfig.primaryProvider}, Configured providers: $configuredProviders")
+        
         if (configuredProviders.isEmpty()) {
-            return "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
+            val errorMsg = "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
                     "• OpenAI API key for GPT-4 Vision\n" +
                     "• Google Gemini API key\n" +
                     "• Or configure a custom OpenAI-compatible API"
+            println("ViewModel: Validation failed - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "ViewModel: Validation failed - $errorMsg")
+            return errorMsg
         }
         
         // Validate specific provider configurations
@@ -230,6 +248,8 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             }
         }
         
+        println("ViewModel: All validations passed")
+        android.util.Log.d("MangaLearnJP", "ViewModel: All validations passed")
         Logger.logViewModelAction("Prerequisites validation passed")
         return null // All validations passed
     }
@@ -344,33 +364,52 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     fun quickAnalysis() {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "quickAnalysis")
-        println("Quick analysis triggered - current mode: ${_uiState.value.currentMode}")
+        println("ViewModel: quickAnalysis() called")
         android.util.Log.d("MangaLearnJP", "ViewModel: quickAnalysis() called")
         
-        // Clear any previous errors
-        _uiState.value = _uiState.value.copy(error = null)
-        
-        // Validate prerequisites
-        val validationResult = validateAnalysisPrerequisites()
-        if (validationResult != null) {
-            Logger.logError("quickAnalysis", "Validation failed: $validationResult")
-            _uiState.value = _uiState.value.copy(error = validationResult)
+        if (_uiState.value.selectedImage == null) {
+            val errorMsg = "No image selected for analysis."
+            Logger.logError("quickAnalysis", errorMsg)
+            println("ViewModel: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "ViewModel: $errorMsg")
+            _uiState.value = _uiState.value.copy(error = errorMsg)
             return
         }
         
-        _uiState.value = _uiState.value.copy(currentMode = AnalysisMode.SIMPLE_ANALYSIS)
-        println("Mode set to SIMPLE_ANALYSIS")
-        android.util.Log.d("MangaLearnJP", "ViewModel: Mode set to SIMPLE_ANALYSIS, starting analysis")
-        analyzeFullImage()
+        println("ViewModel: Setting mode to SIMPLE_ANALYSIS")
+        android.util.Log.d("MangaLearnJP", "ViewModel: Setting mode to SIMPLE_ANALYSIS")
+        setMode(AnalysisMode.SIMPLE_ANALYSIS)
+        
+        println("ViewModel: Calling analyzeWithFallback()")
+        android.util.Log.d("MangaLearnJP", "ViewModel: Calling analyzeWithFallback()")
+        analyzeWithFallback()
     }
-    
+
     fun analyzeWithFallback() {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "analyzeWithFallback")
-        println("Analyze with fallback triggered")
-        android.util.Log.d("MangaLearnJP", "ViewModel: analyzeWithFallback() called")
+        println("ViewModel: analyzeWithFallback() starting")
+        android.util.Log.d("MangaLearnJP", "ViewModel: analyzeWithFallback() starting")
         
-        // This is essentially the same as analyzeFullImage but with explicit fallback enabled
-        analyzeFullImage()
+        viewModelScope.launch {
+            try {
+                println("ViewModel: Inside viewModelScope.launch")
+                android.util.Log.d("MangaLearnJP", "ViewModel: Inside viewModelScope.launch")
+                
+                // This is essentially the same as analyzeFullImage but with explicit fallback enabled
+                analyzeFullImage()
+                
+                println("ViewModel: analyzeFullImage() completed")
+                android.util.Log.d("MangaLearnJP", "ViewModel: analyzeFullImage() completed")
+            } catch (e: Exception) {
+                Logger.logError("analyzeWithFallback", e)
+                println("ViewModel: Exception in analyzeWithFallback: ${e.message}")
+                android.util.Log.e("MangaLearnJP", "ViewModel: Exception in analyzeWithFallback", e)
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    error = "Analysis failed: ${e.message}"
+                )
+            }
+        }
     }
     
     fun testAnalysis() {

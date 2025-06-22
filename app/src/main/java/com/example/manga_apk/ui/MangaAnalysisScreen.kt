@@ -37,7 +37,11 @@ fun MangaAnalysisScreen(
     viewModel: MangaAnalysisViewModel,
     onNavigateToReading: () -> Unit,
     onNavigateToInteractiveReading: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToStudyMode: () -> Unit = {},
+    onNavigateToSpeedReading: () -> Unit = {},
+    onNavigateToImmersiveMode: () -> Unit = {},
+    onNavigateToVocabularyFocus: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -107,7 +111,11 @@ fun MangaAnalysisScreen(
             AnalysisMode.READING_MODE -> {
                 ReadingModeSection(
                     onNavigateToReading = onNavigateToReading,
-                    onNavigateToInteractiveReading = onNavigateToInteractiveReading
+                    onNavigateToInteractiveReading = onNavigateToInteractiveReading,
+                    onNavigateToStudyMode = onNavigateToStudyMode,
+                    onNavigateToSpeedReading = onNavigateToSpeedReading,
+                    onNavigateToImmersiveMode = onNavigateToImmersiveMode,
+                    onNavigateToVocabularyFocus = onNavigateToVocabularyFocus
                 )
             }
         }
@@ -325,7 +333,11 @@ fun UploadSection(
             ) {
                 // Quick Analysis Button
                 Button(
-                    onClick = onQuickAnalysis,
+                    onClick = {
+                        println("UI: Quick AI Analysis button clicked")
+                        android.util.Log.d("MangaLearnJP", "UI: Quick AI Analysis button clicked")
+                        onQuickAnalysis()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isProcessing,
                     colors = ButtonDefaults.buttonColors(
@@ -725,7 +737,11 @@ fun SimpleAnalysisSection(
 @Composable
 fun ReadingModeSection(
     onNavigateToReading: () -> Unit,
-    onNavigateToInteractiveReading: () -> Unit
+    onNavigateToInteractiveReading: () -> Unit,
+    onNavigateToStudyMode: () -> Unit = {},
+    onNavigateToSpeedReading: () -> Unit = {},
+    onNavigateToImmersiveMode: () -> Unit = {},
+    onNavigateToVocabularyFocus: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -735,7 +751,7 @@ fun ReadingModeSection(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            "Interactive Reading Mode",
+            "Choose Your Reading Mode",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -744,27 +760,140 @@ fun ReadingModeSection(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            "This feature will allow you to tap on text in manga panels for instant translation and analysis.",
+            "Select the reading mode that best fits your learning style and goals.",
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
-        Button(
-            onClick = onNavigateToReading,
-            modifier = Modifier.fillMaxWidth()
+        // Interactive Reading Mode
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onNavigateToInteractiveReading() },
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Text("Start Reading Mode")
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "📖 Interactive Reading",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Tap on text for instant translation and analysis",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Button(
-            onClick = onNavigateToInteractiveReading,
-            modifier = Modifier.fillMaxWidth()
+        // Study Mode
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onNavigateToStudyMode() },
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Text("Start Interactive Reading")
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "📚 Study Mode",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Highlight new words, show furigana, track progress",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        // Speed Reading Mode
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onNavigateToSpeedReading() },
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "⚡ Speed Reading",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Paced reading with customizable WPM settings",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        // Immersive Mode
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onNavigateToImmersiveMode() },
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "🎯 Immersive Mode",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Distraction-free full-screen reading experience",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        // Vocabulary Focus Mode
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onNavigateToVocabularyFocus() },
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "📝 Vocabulary Focus",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Focus on JLPT level vocabulary with definitions",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        OutlinedButton(
+            onClick = onNavigateToReading,
+            modifier = Modifier.fillMaxWidth(0.8f)
+        ) {
+            Text("Simple Reading Mode")
         }
     }
 }

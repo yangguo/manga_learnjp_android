@@ -17,10 +17,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.manga_apk.ui.AISettingsScreen
-import com.example.manga_apk.ui.InteractiveReadingScreen
-import com.example.manga_apk.ui.MangaAnalysisScreen
-import com.example.manga_apk.ui.ReadingScreen
+import com.example.manga_apk.ui.*
 import com.example.manga_apk.ui.theme.Manga_apkTheme
 import com.example.manga_apk.viewmodel.MangaAnalysisViewModel
 import com.example.manga_apk.viewmodel.MangaAnalysisViewModelFactory
@@ -61,6 +58,18 @@ fun MangaApp() {
                 },
                 onNavigateToSettings = {
                     navController.navigate("ai_settings")
+                },
+                onNavigateToStudyMode = {
+                    navController.navigate("study_mode")
+                },
+                onNavigateToSpeedReading = {
+                    navController.navigate("speed_reading")
+                },
+                onNavigateToImmersiveMode = {
+                    navController.navigate("immersive_mode")
+                },
+                onNavigateToVocabularyFocus = {
+                    navController.navigate("vocabulary_focus")
                 }
             )
         }
@@ -105,6 +114,34 @@ fun MangaApp() {
                 onNavigateBack = {
                     navController.popBackStack()
                 }
+            )
+        }
+        
+        composable("study_mode") {
+            val viewModel: ReadingViewModel = viewModel()
+            StudyModeScreen(
+                viewModel = viewModel
+            )
+        }
+        
+        composable("speed_reading") {
+            val viewModel: ReadingViewModel = viewModel()
+            SpeedReadingScreen(
+                viewModel = viewModel
+            )
+        }
+        
+        composable("immersive_mode") {
+            val viewModel: ReadingViewModel = viewModel()
+            ImmersiveModeScreen(
+                viewModel = viewModel
+            )
+        }
+        
+        composable("vocabulary_focus") {
+            val viewModel: ReadingViewModel = viewModel()
+            VocabularyFocusScreen(
+                viewModel = viewModel
             )
         }
     }

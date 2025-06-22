@@ -127,7 +127,7 @@ fun ReadingSettingsPanel(
                     isNightMode = preferences.isNightMode
                 ) {
                     Column {
-                        ReadingTheme.values().forEach { theme ->
+                        ReadingTheme.entries.forEach { theme ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

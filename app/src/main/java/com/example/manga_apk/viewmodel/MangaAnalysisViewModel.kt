@@ -352,8 +352,12 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     }
     
     fun updateAIConfig(config: AIConfig) {
+        println("ViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
+        android.util.Log.d("MangaLearnJP", "ViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
         viewModelScope.launch {
             preferencesRepository.saveAIConfig(config)
+            println("ViewModel: AI config saved successfully")
+            android.util.Log.d("MangaLearnJP", "ViewModel: AI config saved successfully")
         }
     }
     

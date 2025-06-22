@@ -37,6 +37,8 @@ fun AISettingsScreen(
     // Update currentConfig when aiConfig changes
     LaunchedEffect(aiConfig) {
         currentConfig = aiConfig
+        println("AISettingsScreen: Received aiConfig - OpenAI key length: ${aiConfig.openaiConfig.apiKey.length}, Gemini key length: ${aiConfig.geminiConfig.apiKey.length}")
+        android.util.Log.d("MangaLearnJP", "AISettingsScreen: Received aiConfig - OpenAI key length: ${aiConfig.openaiConfig.apiKey.length}, Gemini key length: ${aiConfig.geminiConfig.apiKey.length}")
     }
     
     Scaffold(
@@ -157,8 +159,11 @@ fun AISettingsScreen(
                 description = "Configure OpenAI GPT-4 Vision API",
                 apiKey = currentConfig.openaiConfig.apiKey,
                 onApiKeyChange = { newKey ->
+                    val trimmedKey = newKey.trim()
+                    println("AISettingsScreen: OpenAI API key updated - length: ${trimmedKey.length}")
+                    android.util.Log.d("MangaLearnJP", "AISettingsScreen: OpenAI API key updated - length: ${trimmedKey.length}")
                     currentConfig = currentConfig.copy(
-                        openaiConfig = currentConfig.openaiConfig.copy(apiKey = newKey)
+                        openaiConfig = currentConfig.openaiConfig.copy(apiKey = trimmedKey)
                     )
                     onConfigUpdate(currentConfig)
                 },
@@ -199,8 +204,11 @@ fun AISettingsScreen(
                 description = "Configure Google Gemini Pro Vision API",
                 apiKey = currentConfig.geminiConfig.apiKey,
                 onApiKeyChange = { newKey ->
+                    val trimmedKey = newKey.trim()
+                    println("AISettingsScreen: Gemini API key updated - length: ${trimmedKey.length}")
+                    android.util.Log.d("MangaLearnJP", "AISettingsScreen: Gemini API key updated - length: ${trimmedKey.length}")
                     currentConfig = currentConfig.copy(
-                        geminiConfig = currentConfig.geminiConfig.copy(apiKey = newKey)
+                        geminiConfig = currentConfig.geminiConfig.copy(apiKey = trimmedKey)
                     )
                     onConfigUpdate(currentConfig)
                 },
@@ -228,8 +236,11 @@ fun AISettingsScreen(
                 description = "Configure your own OpenAI-compatible API",
                 apiKey = currentConfig.customConfig.apiKey,
                 onApiKeyChange = { newKey ->
+                    val trimmedKey = newKey.trim()
+                    println("AISettingsScreen: Custom API key updated - length: ${trimmedKey.length}")
+                    android.util.Log.d("MangaLearnJP", "AISettingsScreen: Custom API key updated - length: ${trimmedKey.length}")
                     currentConfig = currentConfig.copy(
-                        customConfig = currentConfig.customConfig.copy(apiKey = newKey)
+                        customConfig = currentConfig.customConfig.copy(apiKey = trimmedKey)
                     )
                     onConfigUpdate(currentConfig)
                 },

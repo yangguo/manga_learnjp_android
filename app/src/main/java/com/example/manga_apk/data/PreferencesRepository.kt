@@ -40,6 +40,12 @@ class PreferencesRepository(private val context: Context) {
     
     val aiConfigFlow: Flow<AIConfig> = context.dataStore.data
         .map { preferences ->
+            // Load and trim API keys to remove any whitespace
+            val openaiKey = (preferences[OPENAI_API_KEY] ?: "").trim()
+            val geminiKey = (preferences[GEMINI_API_KEY] ?: "").trim()
+            val customKey = (preferences[CUSTOM_API_KEY] ?: "").trim()
+            val customEndpoint = (preferences[CUSTOM_ENDPOINT_KEY] ?: "").trim()
+            
             val config = AIConfig(
                 primaryProvider = try {
                     AIProvider.valueOf(
@@ -50,28 +56,37 @@ class PreferencesRepository(private val context: Context) {
                 },
                 enableFallback = preferences[ENABLE_FALLBACK_KEY] ?: false,
                 openaiConfig = OpenAIConfig(
-                    apiKey = preferences[OPENAI_API_KEY] ?: "",
-                    textModel = preferences[OPENAI_TEXT_MODEL_KEY] ?: "gpt-4-turbo",
-                    visionModel = preferences[OPENAI_VISION_MODEL_KEY] ?: "gpt-4o"
+                    apiKey = openaiKey,
+                    textModel = (preferences[OPENAI_TEXT_MODEL_KEY] ?: "gpt-4-turbo").trim(),
+                    visionModel = (preferences[OPENAI_VISION_MODEL_KEY] ?: "gpt-4o").trim()
                 ),
                 geminiConfig = GeminiConfig(
-                    apiKey = preferences[GEMINI_API_KEY] ?: "",
-                    model = preferences[GEMINI_MODEL_KEY] ?: "gemini-1.5-pro"
+                    apiKey = geminiKey,
+                    model = (preferences[GEMINI_MODEL_KEY] ?: "gemini-1.5-pro").trim()
                 ),
                 customConfig = CustomAPIConfig(
-                    apiKey = preferences[CUSTOM_API_KEY] ?: "",
-                    endpoint = preferences[CUSTOM_ENDPOINT_KEY] ?: "",
-                    model = preferences[CUSTOM_MODEL_KEY] ?: ""
+                    apiKey = customKey,
+                    endpoint = customEndpoint,
+                    model = (preferences[CUSTOM_MODEL_KEY] ?: "").trim()
                 ),
                 includeGrammar = preferences[INCLUDE_GRAMMAR_KEY] ?: true,
                 includeVocabulary = preferences[INCLUDE_VOCABULARY_KEY] ?: true,
                 includeTranslation = preferences[INCLUDE_TRANSLATION_KEY] ?: true
             )
+            
+            // Enhanced debug logging
             println("PreferencesRepository: Loaded AI config - Primary Provider: ${config.primaryProvider}, Fallback enabled: ${config.enableFallback}")
+            println("PreferencesRepository: OpenAI key length: ${openaiKey.length}, Gemini key length: ${geminiKey.length}, Custom key length: ${customKey.length}")
+            println("PreferencesRepository: Configured providers: ${config.getConfiguredProviders()}")
+            android.util.Log.d("MangaLearnJP", "PreferencesRepository: API Keys - OpenAI: ${if (openaiKey.isNotEmpty()) "${openaiKey.length} chars" else "empty"}, Gemini: ${if (geminiKey.isNotEmpty()) "${geminiKey.length} chars" else "empty"}, Custom: ${if (customKey.isNotEmpty()) "${customKey.length} chars" else "empty"}")
+            
             config
         }
     
     suspend fun saveAIConfig(config: AIConfig) {
+        println("PreferencesRepository: saveAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
+        android.util.Log.d("MangaLearnJP", "PreferencesRepository: saveAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
+        
         context.dataStore.edit { preferences ->
             preferences[PRIMARY_PROVIDER_KEY] = config.primaryProvider.name
             preferences[ENABLE_FALLBACK_KEY] = config.enableFallback

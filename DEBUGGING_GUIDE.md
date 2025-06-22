@@ -11,6 +11,35 @@
 
 **Root Cause Analysis:**
 
+**UPDATED FIX (2025-01-22):**
+The issue has been identified and fixed. The problem was that API keys were not being properly trimmed of whitespace when saved or loaded, causing validation to fail even when keys were entered. The following changes have been made:
+
+1. **Enhanced API Key Validation**: Added proper trimming in PreferencesRepository
+2. **Improved Debug Logging**: Added comprehensive logging throughout the data flow
+3. **Fixed UI Callbacks**: API keys are now trimmed when entered in settings
+
+**To verify the fix:**
+1. Clear app data or reinstall the app
+2. Go to Settings and enter your OpenAI API key
+3. Check logcat for debug messages:
+   ```
+   adb logcat | grep MangaLearnJP
+   ```
+4. You should see messages like:
+   ```
+   AISettingsScreen: OpenAI API key updated - length: XX
+   ViewModel: updateAIConfig called - OpenAI key length: XX
+   PreferencesRepository: saveAIConfig called - OpenAI key length: XX
+   PreferencesRepository: Loaded AI config - OpenAI key length: XX
+   ```
+
+**If the issue persists:**
+- Check that you're entering a valid OpenAI API key (starts with 'sk-' and is ~51 characters)
+- Ensure you have internet connectivity
+- Verify the API key works in other applications
+
+**Original Root Cause Analysis:**
+
 **FIXED ISSUE: API Key Validation with Whitespace**
 - **Problem**: API keys with leading/trailing whitespace were not being recognized as valid
 - **Solution**: Added `.trim()` to all API key validation and storage operations

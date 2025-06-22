@@ -116,6 +116,15 @@ fun MangaApp() {
                 },
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onDebugTest = {
+                    mangaViewModel.testAnalysis()
+                },
+                onRefreshConfig = {
+                    mangaViewModel.refreshAIConfig()
+                },
+                onClearPreferences = {
+                    mangaViewModel.clearAllPreferences()
                 }
             )
         }

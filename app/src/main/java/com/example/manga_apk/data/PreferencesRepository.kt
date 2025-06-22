@@ -115,4 +115,16 @@ class PreferencesRepository(private val context: Context) {
         println("PreferencesRepository: Saved AI config - OpenAI key length: ${config.openaiConfig.apiKey.trim().length}, Gemini key length: ${config.geminiConfig.apiKey.trim().length}")
         android.util.Log.d("MangaLearnJP", "PreferencesRepository: API keys saved - OpenAI: ${if (config.openaiConfig.apiKey.trim().isNotEmpty()) "configured" else "empty"}, Gemini: ${if (config.geminiConfig.apiKey.trim().isNotEmpty()) "configured" else "empty"}")
     }
+    
+    suspend fun clearAllPreferences() {
+        println("PreferencesRepository: Clearing all preferences")
+        android.util.Log.d("MangaLearnJP", "PreferencesRepository: Clearing all preferences")
+        
+        context.dataStore.edit { preferences ->
+            preferences.clear()
+        }
+        
+        println("PreferencesRepository: All preferences cleared")
+        android.util.Log.d("MangaLearnJP", "PreferencesRepository: All preferences cleared")
+    }
 }

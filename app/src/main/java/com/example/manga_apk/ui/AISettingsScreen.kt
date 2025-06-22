@@ -1,5 +1,6 @@
 package com.example.manga_apk.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -8,6 +9,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -27,7 +32,10 @@ import com.example.manga_apk.data.*
 fun AISettingsScreen(
     aiConfig: AIConfig,
     onConfigUpdate: (AIConfig) -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onDebugTest: (() -> Unit)? = null,
+    onRefreshConfig: (() -> Unit)? = null,
+    onClearPreferences: (() -> Unit)? = null
 ) {
     var currentConfig by remember { mutableStateOf(aiConfig) }
     var showOpenAIKey by remember { mutableStateOf(false) }
@@ -354,6 +362,126 @@ fun AISettingsScreen(
                     )
                 }
             }
+            
+            // Debug Section (only show if debug functions are provided)
+            if (onDebugTest != null || onRefreshConfig != null || onClearPreferences != null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.BugReport,
+                                contentDescription = "Debug",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "🔧 Debug Tools",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        Text(
+                            text = "Having API key issues? Use these diagnostic tools:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (onDebugTest != null) {
+                                Button(
+                                    onClick = onDebugTest,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary,
+                                        contentColor = MaterialTheme.colorScheme.onSecondary
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = 4.dp
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Debug Test", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            
+                            if (onRefreshConfig != null) {
+                                Button(
+                                    onClick = onRefreshConfig,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiary,
+                                        contentColor = MaterialTheme.colorScheme.onTertiary
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = 4.dp
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Refresh", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        
+                        if (onClearPreferences != null) {
+                            Button(
+                                onClick = onClearPreferences,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(
+                                    defaultElevation = 6.dp
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteForever,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "🗑️ Clear All Preferences",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Text(
+                                text = "⚠️ This will permanently delete all saved settings and API keys",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -368,16 +496,58 @@ fun ProviderConfigCard(
     onToggleShowApiKey: () -> Unit,
     additionalFields: @Composable ColumnScope.() -> Unit = {}
 ) {
-    Card {
+    val hasApiKey = apiKey.trim().isNotEmpty()
+    
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (hasApiKey) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        border = if (hasApiKey) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (hasApiKey) 4.dp else 2.dp
+        )
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (hasApiKey) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                if (hasApiKey) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondary,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = "✓ Configured",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
             
             Text(
                 text = description,
@@ -399,12 +569,29 @@ fun ProviderConfigCard(
                     IconButton(onClick = onToggleShowApiKey) {
                         Icon(
                             imageVector = if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (showApiKey) "Hide API key" else "Show API key"
+                            contentDescription = if (showApiKey) "Hide API key" else "Show API key",
+                            tint = if (hasApiKey) {
+                                MaterialTheme.colorScheme.secondary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = if (hasApiKey) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    focusedLabelColor = if (hasApiKey) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
             )
             
             additionalFields()

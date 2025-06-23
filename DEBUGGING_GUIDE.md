@@ -123,7 +123,26 @@ Look for these error patterns in logs:
 **Solution:** Upload an image before clicking analyze
 
 #### "❌ No AI providers configured. Please set up at least one API key in Settings"
-**Solution:** Follow Step 2 above to configure API keys
+**Enhanced Error Message:** The app now provides detailed troubleshooting information including:
+- Current status of each provider (OpenAI, Gemini, Custom)
+- Detection of whitespace issues in API keys
+- Step-by-step solutions
+
+**Solutions:**
+1. Go to Settings (⚙️ icon)
+2. Enter a valid API key for at least one provider
+3. **Important:** Make sure there are no extra spaces before/after the API key
+4. Try the 'Refresh Config' button in Settings
+5. If issues persist, try 'Clear All Preferences' and reconfigure
+
+#### "❌ OpenAI is set as primary provider but API key is missing"
+**Solution:** Either add your OpenAI API key in Settings or switch to a different primary provider
+
+#### "❌ OpenAI API key appears to be invalid (too short: X characters)"
+**Solution:** Check your OpenAI API key - it should start with 'sk-' and be much longer
+
+#### "❌ OpenAI API key format appears incorrect (should start with 'sk-')"
+**Solution:** Verify you copied the correct API key from OpenAI platform
 
 #### "Analysis failed: [API Error]"
 **Possible causes:**
@@ -131,12 +150,14 @@ Look for these error patterns in logs:
 - API quota exceeded
 - Network connectivity issues
 - API service temporarily down
+- Whitespace in API keys
 
 **Solutions:**
-1. Verify API key is correct
+1. Verify API key is correct and has no extra spaces
 2. Check API usage/billing status
 3. Try different provider (enable fallback in settings)
 4. Check internet connection
+5. Use the 'Debug Test' button in Settings to diagnose issues
 
 ### 3. Image Upload Issues
 

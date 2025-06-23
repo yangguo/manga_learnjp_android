@@ -707,4 +707,80 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             error = debugInfo
         )
     }
+
+    fun runDemoAnalysis() {
+        Logger.logFunctionEntry("MangaAnalysisViewModel", "runDemoAnalysis")
+        println("ViewModel: Running demo analysis to show app capabilities")
+        
+        _uiState.value = _uiState.value.copy(isProcessing = true, error = null)
+        
+        viewModelScope.launch {
+            try {
+                // Simulate processing time
+                delay(2000)
+                
+                val demoAnalysis = TextAnalysis(
+                    originalText = "これは日本語のテストです。\n頑張って勉強しましょう！",
+                    translation = "This is a Japanese test.\nLet's study hard!",
+                    vocabulary = listOf(
+                        VocabularyItem(
+                            word = "これ",
+                            reading = "これ",
+                            meaning = "this",
+                            partOfSpeech = "pronoun",
+                            jlptLevel = "N5"
+                        ),
+                        VocabularyItem(
+                            word = "日本語",
+                            reading = "にほんご",
+                            meaning = "Japanese language",
+                            partOfSpeech = "noun",
+                            jlptLevel = "N5"
+                        ),
+                        VocabularyItem(
+                            word = "勉強",
+                            reading = "べんきょう",
+                            meaning = "study",
+                            partOfSpeech = "noun/verb",
+                            jlptLevel = "N5"
+                        ),
+                        VocabularyItem(
+                            word = "頑張る",
+                            reading = "がんばる",
+                            meaning = "to do one's best, to try hard",
+                            partOfSpeech = "verb",
+                            jlptLevel = "N4"
+                        )
+                    ),
+                    grammarPoints = listOf(
+                        GrammarPoint(
+                            pattern = "ましょう",
+                            explanation = "Polite form used to make suggestions or invitations",
+                            example = "勉強しましょう (Let's study)",
+                            jlptLevel = "N5"
+                        )
+                    ),
+                    difficulty = "Beginner (N5-N4)",
+                    confidence = 0.95f
+                )
+                
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    overallAnalysis = demoAnalysis,
+                    currentMode = AnalysisMode.SIMPLE_ANALYSIS,
+                    error = null
+                )
+                
+                println("ViewModel: Demo analysis completed successfully")
+                Logger.i(Logger.Category.VIEWMODEL, "Demo analysis completed")
+                
+            } catch (e: Exception) {
+                Logger.logError("runDemoAnalysis", e)
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    error = "Demo analysis failed: ${e.message}"
+                )
+            }
+        }
+    }
 }

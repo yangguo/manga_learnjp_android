@@ -123,7 +123,9 @@ fun MangaAnalysisScreen(
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
                     onAnalyze = viewModel::analyzeWithFallback,
-                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
+                    onRunDemo = viewModel::runDemoAnalysis,
+                    onNavigateToSettings = onNavigateToSettings
                 )
             }
             AnalysisMode.READING_MODE -> {
@@ -143,7 +145,9 @@ fun MangaAnalysisScreen(
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
                     onAnalyze = viewModel::analyzeWithFallback,
-                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
+                    onRunDemo = viewModel::runDemoAnalysis,
+                    onNavigateToSettings = onNavigateToSettings
                 )
             }
             AnalysisMode.SPEED_READING -> {
@@ -153,7 +157,9 @@ fun MangaAnalysisScreen(
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
                     onAnalyze = viewModel::analyzeWithFallback,
-                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
+                    onRunDemo = viewModel::runDemoAnalysis,
+                    onNavigateToSettings = onNavigateToSettings
                 )
             }
             AnalysisMode.IMMERSIVE_MODE -> {
@@ -163,7 +169,9 @@ fun MangaAnalysisScreen(
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
                     onAnalyze = viewModel::analyzeWithFallback,
-                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
+                    onRunDemo = viewModel::runDemoAnalysis,
+                    onNavigateToSettings = onNavigateToSettings
                 )
             }
             AnalysisMode.VOCABULARY_FOCUS -> {
@@ -173,12 +181,14 @@ fun MangaAnalysisScreen(
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
                     onAnalyze = viewModel::analyzeWithFallback,
-                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
+                    onRunDemo = viewModel::runDemoAnalysis,
+                    onNavigateToSettings = onNavigateToSettings
                 )
             }
         }
         
-        // Error handling - Enhanced with better visibility
+        // Error handling - Enhanced with better visibility and specific API guidance
         uiState.error?.let { error ->
             Card(
                 modifier = Modifier
@@ -225,6 +235,100 @@ fun MangaAnalysisScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    
+                    // Specific guidance for API errors
+                    if (error.contains("404") || error.contains("Custom API")) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Text(
+                                    text = "🔧 Custom API Troubleshooting:",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "• Check that your API endpoint URL is correct\n" +
+                                            "• Verify your API server is running and accessible\n" +
+                                            "• For OpenAI-compatible APIs, try '/v1/chat/completions'\n" +
+                                            "• For other providers, check their documentation\n" +
+                                            "• Consider using OpenAI or Gemini as primary provider\n" +
+                                            "• Enable fallback mode in AI Settings",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = onNavigateToSettings,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("AI Settings", fontSize = 12.sp)
+                                    }
+                                    
+                                    Button(
+                                        onClick = { 
+                                            viewModel.clearError()
+                                            if (uiState.selectedImage != null) {
+                                                viewModel.analyzeWithFallback()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = uiState.selectedImage != null && !uiState.isProcessing
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Retry", fontSize = 12.sp)
+                                    }
+                                }
+                                
+                                // Add demo button row
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { 
+                                        viewModel.clearError()
+                                        viewModel.runDemoAnalysis()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !uiState.isProcessing,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Try Demo Analysis", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                    
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Check Android logs (Logcat) with tag 'MangaLearnJP' for detailed debugging information.",
@@ -684,7 +788,9 @@ fun SimpleAnalysisSection(
     selectedImage: android.graphics.Bitmap?,
     isProcessing: Boolean,
     onAnalyze: () -> Unit,
-    onBackToUpload: () -> Unit
+    onBackToUpload: () -> Unit,
+    onRunDemo: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -765,18 +871,64 @@ fun SimpleAnalysisSection(
                     Text("Analyze Full Image")
                 }
                 
+                // Demo button for when users want to see what the app can do
+                OutlinedButton(
+                    onClick = {
+                        println("UI: Demo Analysis button clicked!")
+                        onRunDemo()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isProcessing
+                ) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Try Demo Analysis")
+                }
+                
                 // Debug info card
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
-                    Text(
-                        text = "Make sure to configure your AI API key in Settings before analyzing. If no API key is set, a test analysis will be shown.",
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text(
+                            text = "💡 AI Analysis Tips:",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "• Configure your AI API key in Settings before analyzing\n" +
+                                    "• If using Custom API, ensure the server is running\n" +
+                                    "• Enable fallback mode for better reliability\n" +
+                                    "• Test analysis will be shown if no API key is configured",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        OutlinedButton(
+                            onClick = onNavigateToSettings,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Configure AI Settings")
+                        }
+                    }
                 }
             }
         } else {

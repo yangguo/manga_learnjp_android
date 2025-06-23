@@ -288,7 +288,7 @@ fun AISettingsScreen(
                             // Don't save automatically - only when save button is clicked
                         },
                         label = { Text("API Endpoint") },
-                        placeholder = { Text("https://api.example.com/v1/chat/completions") },
+                        placeholder = { Text("https://your-api.com/chat or /v1/chat/completions") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     

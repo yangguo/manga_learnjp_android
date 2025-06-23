@@ -449,14 +449,37 @@ class AIService {
         bitmap: Bitmap,
         config: CustomAPIConfig
     ): Result<TextAnalysis> {
-        val base64Image = bitmapToBase64(bitmap)
+        println("AIService: Starting analyzeWithCustomAPI")
+        println("AIService: Bitmap info - Size: ${bitmap.width}x${bitmap.height}, Config: ${bitmap.config}")
+        android.util.Log.d("MangaLearnJP", "AIService: Bitmap info - Size: ${bitmap.width}x${bitmap.height}, Config: ${bitmap.config}")
         
-        // Use the model from custom config
-        val modelToUse = config.model
-        println("AIService: Using custom API model: $modelToUse")
+        val base64Image = bitmapToBase64(bitmap)
+        if (base64Image.isEmpty()) {
+            val errorMsg = "Failed to convert bitmap to base64"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
+        
+        // Use the model from custom config, with fallback
+        val modelToUse = if (config.model.trim().isEmpty()) {
+            "gpt-4-vision-preview" // Fallback model for vision tasks
+        } else {
+            config.model.trim()
+        }
+        
+        println("AIService: Using custom API model: '$modelToUse'")
         println("AIService: Custom API endpoint: '${config.endpoint}'")
         println("AIService: Custom API key length: ${config.apiKey.length}")
         android.util.Log.d("MangaLearnJP", "AIService: Custom API - Endpoint: '${config.endpoint}', Model: '$modelToUse', Key length: ${config.apiKey.length}")
+        
+        // Validate model
+        if (modelToUse.isEmpty()) {
+            val errorMsg = "Custom API model is empty - please specify a model in Settings"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
         
         // Validate endpoint URL
         if (config.endpoint.trim().isEmpty()) {
@@ -468,6 +491,14 @@ class AIService {
         
         if (!config.endpoint.startsWith("http://") && !config.endpoint.startsWith("https://")) {
             val errorMsg = "Custom API endpoint must start with http:// or https://. Current: '${config.endpoint}'"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
+        
+        // Validate API key
+        if (config.apiKey.trim().isEmpty()) {
+            val errorMsg = "Custom API key is empty - please add your API key in Settings"
             println("AIService: ERROR - $errorMsg")
             android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
             return Result.failure(IllegalArgumentException(errorMsg))
@@ -490,6 +521,28 @@ class AIService {
             addProperty("max_tokens", 4000)
         }
         
+        // Log the request body structure (without the full base64 image for readability)
+        val requestBodyForLogging = JsonObject().apply {
+            addProperty("model", modelToUse)
+            add("messages", gson.toJsonTree(listOf(
+                mapOf(
+                    "role" to "user",
+                    "content" to listOf(
+                        mapOf("type" to "text", "text" to MANGA_ANALYSIS_PROMPT.take(100) + "..."),
+                        mapOf(
+                            "type" to "image_url",
+                            "image_url" to mapOf("url" to "data:image/jpeg;base64,[BASE64_IMAGE_${base64Image.length}_CHARS]")
+                        )
+                    )
+                )
+            )))
+            addProperty("max_tokens", 4000)
+        }
+        
+        println("AIService: Request body structure: ${gson.toJson(requestBodyForLogging)}")
+        android.util.Log.d("MangaLearnJP", "AIService: Request body structure: ${gson.toJson(requestBodyForLogging)}")
+        android.util.Log.d("MangaLearnJP", "AIService: Base64 image length: ${base64Image.length} characters")
+        
         val requestBuilder = Request.Builder()
             .url(config.endpoint)
             .addHeader("Content-Type", "application/json")
@@ -497,6 +550,11 @@ class AIService {
         
         if (config.apiKey.isNotEmpty()) {
             requestBuilder.addHeader("Authorization", "Bearer ${config.apiKey}")
+            println("AIService: Added Authorization header with key")
+            android.util.Log.d("MangaLearnJP", "AIService: Added Authorization header")
+        } else {
+            println("AIService: WARNING - No API key provided")
+            android.util.Log.w("MangaLearnJP", "AIService: WARNING - No API key provided")
         }
         
         return try {
@@ -513,6 +571,10 @@ class AIService {
                 val responseBody = response.body?.string()
                 if (responseBody != null) {
                     println("AIService: Successful response received, length: ${responseBody.length}")
+                    println("AIService: Response preview: ${responseBody.take(200)}...")
+                    android.util.Log.d("MangaLearnJP", "AIService: Response length: ${responseBody.length}")
+                    android.util.Log.d("MangaLearnJP", "AIService: Response preview: ${responseBody.take(200)}...")
+                    
                     parseOpenAIResponse(responseBody) // Use OpenAI format parser
                 } else {
                     val errorMsg = "Empty response body"
@@ -522,13 +584,39 @@ class AIService {
                 }
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
-                val errorMsg = "Custom API call failed: ${response.code} - $errorBody"
-                println("AIService: ERROR - $errorMsg")
+                val detailedErrorMsg = when (response.code) {
+                    404 -> {
+                        "Custom API endpoint not found (404). Please check:\n" +
+                        "• Is your API server running and accessible?\n" +
+                        "• Is the endpoint URL correct for your API provider?\n" +
+                        "• Current endpoint: '${config.endpoint}'\n" +
+                        "• For OpenAI-compatible APIs, try '/v1/chat/completions'\n" +
+                        "• Try enabling fallback to OpenAI/Gemini in Settings"
+                    }
+                    401, 403 -> {
+                        "Custom API authentication failed (${response.code}). Please check:\n" +
+                        "• Is your API key correct?\n" +
+                        "• Does your API server require authentication?\n" +
+                        "• Current key length: ${config.apiKey.length} characters"
+                    }
+                    500, 502, 503 -> {
+                        "Custom API server error (${response.code}). The API server may be:\n" +
+                        "• Temporarily unavailable\n" +
+                        "• Overloaded\n" +
+                        "• Misconfigured\n" +
+                        "• Try again later or enable fallback mode"
+                    }
+                    else -> {
+                        "Custom API call failed: ${response.code} - $errorBody"
+                    }
+                }
+                
+                println("AIService: ERROR - $detailedErrorMsg")
                 println("AIService: Request URL was: ${requestBuilder.build().url}")
                 println("AIService: Request headers: ${requestBuilder.build().headers}")
-                android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+                android.util.Log.e("MangaLearnJP", "AIService: $detailedErrorMsg")
                 android.util.Log.e("MangaLearnJP", "AIService: Request URL was: ${requestBuilder.build().url}")
-                Result.failure(IOException(errorMsg))
+                Result.failure(IOException(detailedErrorMsg))
             }
         } catch (e: Exception) {
             val errorMsg = "Exception in custom API call: ${e.message}"
@@ -680,25 +768,44 @@ class AIService {
                 "contentLength" to content.length.toString()
             ))
             
+            println("AIService: Parsing analysis content, length: ${content.length}")
+            println("AIService: Content preview: ${content.take(300)}...")
+            android.util.Log.d("MangaLearnJP", "AIService: Parsing content length: ${content.length}")
+            android.util.Log.d("MangaLearnJP", "AIService: Content preview: ${content.take(300)}...")
+            
             // Try to parse as JSON first
             val gson = Gson()
             val analysis = gson.fromJson(content, TextAnalysis::class.java)
             
+            if (analysis == null) {
+                println("AIService: Parsed analysis is null, creating fallback")
+                android.util.Log.w("MangaLearnJP", "AIService: Parsed analysis is null")
+                throw Exception("Parsed analysis is null")
+            }
+            
+            println("AIService: Successfully parsed JSON analysis - Translation: ${analysis.translation.take(100)}...")
+            android.util.Log.d("MangaLearnJP", "AIService: Successfully parsed JSON analysis")
             Logger.i(Logger.Category.AI_SERVICE, "Successfully parsed JSON analysis")
             Result.success(analysis)
             
         } catch (e: Exception) {
+            println("AIService: JSON parsing failed: ${e.message}")
+            android.util.Log.w("MangaLearnJP", "AIService: JSON parsing failed: ${e.message}")
             Logger.w(Logger.Category.AI_SERVICE, "JSON parsing failed, attempting fallback parsing: ${e.message}")
             
             // Fallback: create a simple analysis with the raw content
             val fallbackAnalysis = TextAnalysis(
-                originalText = "Failed to parse original text",
+                originalText = "Content received but failed to parse as structured data",
                 vocabulary = emptyList(),
                 grammarPatterns = emptyList(),
                 translation = content.take(500), // Limit translation length
-                context = "Analysis parsing failed. Raw content: ${content.take(200)}..."
+                context = "Analysis parsing failed. This may be due to API response format. Raw content available in translation field.",
+                difficulty = "Unknown",
+                confidence = 0.5f
             )
             
+            println("AIService: Created fallback analysis with translation: ${fallbackAnalysis.translation.take(100)}...")
+            android.util.Log.d("MangaLearnJP", "AIService: Created fallback analysis")
             Logger.i(Logger.Category.AI_SERVICE, "Created fallback analysis")
             Result.success(fallbackAnalysis)
         }

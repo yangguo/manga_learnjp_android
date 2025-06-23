@@ -118,8 +118,8 @@ fun MangaApp() {
                     navController.popBackStack()
                 },
                 onSaveSettings = {
-                    // Force save and refresh to ensure settings are persisted
-                    mangaViewModel.refreshAIConfig()
+                    // Save the current configuration when save button is clicked
+                    mangaViewModel.updateAIConfig(uiState.aiConfig)
                 },
                 onClearPreferences = {
                     mangaViewModel.clearAllPreferences()

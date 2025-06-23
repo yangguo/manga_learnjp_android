@@ -110,7 +110,7 @@ fun AISettingsScreen(
                                         selected = currentConfig.primaryProvider == provider,
                                         onClick = {
                                             currentConfig = currentConfig.copy(primaryProvider = provider)
-                                            onConfigUpdate(currentConfig)
+                                            // Don't save automatically - only when save button is clicked
                                         },
                                         role = Role.RadioButton
                                     )
@@ -166,7 +166,7 @@ fun AISettingsScreen(
                             checked = currentConfig.enableFallback,
                             onCheckedChange = { enabled ->
                                 currentConfig = currentConfig.copy(enableFallback = enabled)
-                                onConfigUpdate(currentConfig)
+                                // Don't save automatically - only when save button is clicked
                             }
                         )
                     }
@@ -185,7 +185,7 @@ fun AISettingsScreen(
                     currentConfig = currentConfig.copy(
                         openaiConfig = currentConfig.openaiConfig.copy(apiKey = trimmedKey)
                     )
-                    onConfigUpdate(currentConfig)
+                    // Don't save automatically on every keystroke - only when save button is clicked
                 },
                 showApiKey = showOpenAIKey,
                 onToggleShowApiKey = { showOpenAIKey = !showOpenAIKey },
@@ -196,7 +196,7 @@ fun AISettingsScreen(
                             currentConfig = currentConfig.copy(
                                 openaiConfig = currentConfig.openaiConfig.copy(textModel = newModel)
                             )
-                            onConfigUpdate(currentConfig)
+                            // Don't save automatically - only when save button is clicked
                         },
                         label = { Text("Text Model") },
                         placeholder = { Text("gpt-4-turbo") },
@@ -209,7 +209,7 @@ fun AISettingsScreen(
                             currentConfig = currentConfig.copy(
                                 openaiConfig = currentConfig.openaiConfig.copy(visionModel = newModel)
                             )
-                            onConfigUpdate(currentConfig)
+                            // Don't save automatically - only when save button is clicked
                         },
                         label = { Text("Vision Model") },
                         placeholder = { Text("gpt-4o") },
@@ -230,7 +230,7 @@ fun AISettingsScreen(
                     currentConfig = currentConfig.copy(
                         geminiConfig = currentConfig.geminiConfig.copy(apiKey = trimmedKey)
                     )
-                    onConfigUpdate(currentConfig)
+                    // Don't save automatically on every keystroke - only when save button is clicked
                 },
                 showApiKey = showGeminiKey,
                 onToggleShowApiKey = { showGeminiKey = !showGeminiKey },
@@ -241,7 +241,7 @@ fun AISettingsScreen(
                             currentConfig = currentConfig.copy(
                                 geminiConfig = currentConfig.geminiConfig.copy(model = newModel)
                             )
-                            onConfigUpdate(currentConfig)
+                            // Don't save automatically - only when save button is clicked
                         },
                         label = { Text("Model") },
                         placeholder = { Text("gemini-1.5-pro") },
@@ -262,7 +262,7 @@ fun AISettingsScreen(
                     currentConfig = currentConfig.copy(
                         customConfig = currentConfig.customConfig.copy(apiKey = trimmedKey)
                     )
-                    onConfigUpdate(currentConfig)
+                    // Don't save automatically on every keystroke - only when save button is clicked
                 },
                 showApiKey = showCustomKey,
                 onToggleShowApiKey = { showCustomKey = !showCustomKey },
@@ -273,7 +273,7 @@ fun AISettingsScreen(
                             currentConfig = currentConfig.copy(
                                 customConfig = currentConfig.customConfig.copy(endpoint = newEndpoint)
                             )
-                            onConfigUpdate(currentConfig)
+                            // Don't save automatically - only when save button is clicked
                         },
                         label = { Text("API Endpoint") },
                         placeholder = { Text("https://api.example.com/v1/chat/completions") },
@@ -286,7 +286,7 @@ fun AISettingsScreen(
                             currentConfig = currentConfig.copy(
                                 customConfig = currentConfig.customConfig.copy(model = newModel)
                             )
-                            onConfigUpdate(currentConfig)
+                            // Don't save automatically - only when save button is clicked
                         },
                         label = { Text("Model Name") },
                         placeholder = { Text("gpt-4o") },
@@ -317,7 +317,7 @@ fun AISettingsScreen(
                             checked = currentConfig.includeGrammar,
                             onCheckedChange = { enabled ->
                                 currentConfig = currentConfig.copy(includeGrammar = enabled)
-                                onConfigUpdate(currentConfig)
+                                // Don't save automatically - only when save button is clicked
                             }
                         )
                     }
@@ -332,7 +332,7 @@ fun AISettingsScreen(
                             checked = currentConfig.includeVocabulary,
                             onCheckedChange = { enabled ->
                                 currentConfig = currentConfig.copy(includeVocabulary = enabled)
-                                onConfigUpdate(currentConfig)
+                                // Don't save automatically - only when save button is clicked
                             }
                         )
                     }
@@ -347,7 +347,7 @@ fun AISettingsScreen(
                             checked = currentConfig.includeTranslation,
                             onCheckedChange = { enabled ->
                                 currentConfig = currentConfig.copy(includeTranslation = enabled)
-                                onConfigUpdate(currentConfig)
+                                // Don't save automatically - only when save button is clicked
                             }
                         )
                     }

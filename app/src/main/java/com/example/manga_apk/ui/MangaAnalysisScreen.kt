@@ -50,7 +50,7 @@ fun MangaAnalysisScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { viewModel.loadImageFromUri(context, it) }
+        uri?.let { viewModel.loadImageFromUri(it) }
     }
     
     Column(

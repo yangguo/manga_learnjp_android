@@ -799,9 +799,7 @@ class AIService {
                 vocabulary = emptyList(),
                 grammarPatterns = emptyList(),
                 translation = content.take(500), // Limit translation length
-                context = "Analysis parsing failed. This may be due to API response format. Raw content available in translation field.",
-                difficulty = "Unknown",
-                confidence = 0.5f
+                context = "Analysis parsing failed. This may be due to API response format. Raw content available in translation field."
             )
             
             println("AIService: Created fallback analysis with translation: ${fallbackAnalysis.translation.take(100)}...")

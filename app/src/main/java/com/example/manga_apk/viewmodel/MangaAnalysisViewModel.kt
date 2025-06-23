@@ -721,7 +721,6 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                 
                 val demoAnalysis = TextAnalysis(
                     originalText = "これは日本語のテストです。\n頑張って勉強しましょう！",
-                    translation = "This is a Japanese test.\nLet's study hard!",
                     vocabulary = listOf(
                         VocabularyItem(
                             word = "これ",
@@ -752,16 +751,16 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                             jlptLevel = "N4"
                         )
                     ),
-                    grammarPoints = listOf(
-                        GrammarPoint(
+                    grammarPatterns = listOf(
+                        GrammarPattern(
                             pattern = "ましょう",
                             explanation = "Polite form used to make suggestions or invitations",
                             example = "勉強しましょう (Let's study)",
-                            jlptLevel = "N5"
+                            difficulty = "N5"
                         )
                     ),
-                    difficulty = "Beginner (N5-N4)",
-                    confidence = 0.95f
+                    translation = "This is a Japanese test.\nLet's study hard!",
+                    context = "Demo analysis showing app capabilities with basic Japanese grammar and vocabulary."
                 )
                 
                 _uiState.value = _uiState.value.copy(

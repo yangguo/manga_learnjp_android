@@ -46,14 +46,26 @@ fun AISettingsScreen(
         currentConfig = aiConfig
         println("AISettingsScreen: Received aiConfig - OpenAI key length: ${aiConfig.openaiConfig.apiKey.length}, Gemini key length: ${aiConfig.geminiConfig.apiKey.length}")
         android.util.Log.d("MangaLearnJP", "AISettingsScreen: Received aiConfig - OpenAI key length: ${aiConfig.openaiConfig.apiKey.length}, Gemini key length: ${aiConfig.geminiConfig.apiKey.length}")
+        
+        // Debug check for configured providers
+        val configuredProviders = aiConfig.getConfiguredProviders()
+        println("AISettingsScreen: Configured providers: $configuredProviders")
+        android.util.Log.d("MangaLearnJP", "AISettingsScreen: Configured providers: $configuredProviders")
     }
     
     // Show snackbar when settings are saved
     LaunchedEffect(settingsSaved) {
         if (settingsSaved) {
+            val configuredProviders = currentConfig.getConfiguredProviders()
+            val message = if (configuredProviders.isEmpty()) {
+                "⚠️ Settings saved but no providers are properly configured!"
+            } else {
+                "✅ Settings saved successfully with ${configuredProviders.size} configured provider(s)!"
+            }
+            
             snackbarHostState.showSnackbar(
-                message = "✅ Settings saved successfully!",
-                duration = SnackbarDuration.Short
+                message = message,
+                duration = SnackbarDuration.Long
             )
         }
     }
@@ -395,7 +407,30 @@ fun AISettingsScreen(
                     // Save Settings Button
 
                         Button(
-                            onClick = { onConfigUpdate(currentConfig) },
+                            onClick = { 
+                                // Trim all values before saving
+                                val trimmedConfig = currentConfig.copy(
+                                    openaiConfig = currentConfig.openaiConfig.copy(
+                                        apiKey = currentConfig.openaiConfig.apiKey.trim()
+                                    ),
+                                    geminiConfig = currentConfig.geminiConfig.copy(
+                                        apiKey = currentConfig.geminiConfig.apiKey.trim()
+                                    ),
+                                    customConfig = currentConfig.customConfig.copy(
+                                        apiKey = currentConfig.customConfig.apiKey.trim(),
+                                        endpoint = currentConfig.customConfig.endpoint.trim()
+                                    )
+                                )
+                                
+                                // Log what we're saving
+                                println("AISettingsScreen: Saving config - OpenAI key length: ${trimmedConfig.openaiConfig.apiKey.length}, Gemini key length: ${trimmedConfig.geminiConfig.apiKey.length}")
+                                
+                                // Update the currentConfig with trimmed values
+                                currentConfig = trimmedConfig
+                                
+                                // Save the trimmed config
+                                onConfigUpdate(trimmedConfig)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,

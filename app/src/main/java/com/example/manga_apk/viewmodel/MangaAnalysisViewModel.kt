@@ -15,6 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
@@ -81,7 +82,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         }
     }
     
-    fun loadImageFromUri(context: Context, uri: Uri) {
+    fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
                 println("ViewModel: Loading image from URI: $uri")
@@ -195,142 +196,172 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         Logger.logFunctionEntry("MangaAnalysisViewModel", "validateAnalysisPrerequisites")
         println("ViewModel: validateAnalysisPrerequisites() called")
         android.util.Log.d("MangaLearnJP", "ViewModel: validateAnalysisPrerequisites() called")
-        
-        // Check if image is selected
+
         val bitmap = _uiState.value.selectedImage
-        println("ViewModel: Image check - bitmap is ${if (bitmap != null) "not null (${bitmap.width}x${bitmap.height})" else "null"}")
-        android.util.Log.d("MangaLearnJP", "ViewModel: Image check - bitmap is ${if (bitmap != null) "not null (${bitmap.width}x${bitmap.height})" else "null"}")
-        
-        if (bitmap == null) {
-            val errorMsg = "❌ No image selected. Please upload an image first."
+        if (valImageError(bitmap) != null) {
+            val errorMsg = valImageError(bitmap)
             println("ViewModel: Validation failed - $errorMsg")
             android.util.Log.e("MangaLearnJP", "ViewModel: Validation failed - $errorMsg")
             return errorMsg
         }
-        
-        // Check AI configuration with enhanced debugging
+
         val currentConfig = _uiState.value.aiConfig
-        
-        // Enhanced debug logging with trimming check
-        val openaiKeyRaw = currentConfig.openaiConfig.apiKey
-        val openaiKeyTrimmed = openaiKeyRaw.trim()
-        val geminiKeyRaw = currentConfig.geminiConfig.apiKey
-        val geminiKeyTrimmed = geminiKeyRaw.trim()
-        val customKeyRaw = currentConfig.customConfig.apiKey
-        val customKeyTrimmed = customKeyRaw.trim()
-        val customEndpointRaw = currentConfig.customConfig.endpoint
-        val customEndpointTrimmed = customEndpointRaw.trim()
-        
-        println("ViewModel: AI Config validation - Primary provider: ${currentConfig.primaryProvider}")
-        println("ViewModel: OpenAI - Raw length: ${openaiKeyRaw.length}, Trimmed length: ${openaiKeyTrimmed.length}")
-        println("ViewModel: Gemini - Raw length: ${geminiKeyRaw.length}, Trimmed length: ${geminiKeyTrimmed.length}")
-        println("ViewModel: Custom - Key length: ${customKeyTrimmed.length}, Endpoint: '${customEndpointTrimmed}'")
-        
-        // Check for whitespace issues
-        if (openaiKeyRaw != openaiKeyTrimmed && openaiKeyRaw.isNotEmpty()) {
+        val keyInfo = extractKeyInfo(currentConfig)
+        logKeyInfo(currentConfig, keyInfo)
+
+        val providers = detectProviders(currentConfig, keyInfo)
+        if (providers.effectiveConfiguredProviders.isEmpty()) {
+            val errorMsg = buildNoProviderError(currentConfig, keyInfo)
+            println("ViewModel: Validation failed - No providers configured")
+            android.util.Log.e("MangaLearnJP", "Validation failed - No providers configured. OpenAI: ${keyInfo.openaiKeyTrimmed.length} chars, Gemini: ${keyInfo.geminiKeyTrimmed.length} chars")
+            return errorMsg
+        }
+
+        val primaryProviderError = validatePrimaryProvider(currentConfig, keyInfo)
+        if (primaryProviderError != null) return primaryProviderError
+
+        println("ViewModel: ✅ All validations passed - Primary provider: ${currentConfig.primaryProvider}")
+        android.util.Log.d("MangaLearnJP", "✅ All validations passed - Primary provider: ${currentConfig.primaryProvider}")
+        Logger.logViewModelAction("Prerequisites validation passed")
+        return null
+    }
+
+    private fun valImageError(bitmap: Bitmap?): String? {
+        println("ViewModel: Image check - bitmap is ${if (bitmap != null) "not null (${bitmap.width}x${bitmap.height})" else "null"}")
+        android.util.Log.d("MangaLearnJP", "ViewModel: Image check - bitmap is ${if (bitmap != null) "not null (${bitmap.width}x${bitmap.height})" else "null"}")
+        return if (bitmap == null) "❌ No image selected. Please upload an image first." else null
+    }
+
+    private data class KeyInfo(
+        val openaiKeyRaw: String,
+        val openaiKeyTrimmed: String,
+        val geminiKeyRaw: String,
+        val geminiKeyTrimmed: String,
+        val customKeyRaw: String,
+        val customKeyTrimmed: String,
+        val customEndpointRaw: String,
+        val customEndpointTrimmed: String
+    )
+
+    private fun extractKeyInfo(config: AIConfig): KeyInfo {
+        return KeyInfo(
+            openaiKeyRaw = config.openaiConfig.apiKey,
+            openaiKeyTrimmed = config.openaiConfig.apiKey.trim(),
+            geminiKeyRaw = config.geminiConfig.apiKey,
+            geminiKeyTrimmed = config.geminiConfig.apiKey.trim(),
+            customKeyRaw = config.customConfig.apiKey,
+            customKeyTrimmed = config.customConfig.apiKey.trim(),
+            customEndpointRaw = config.customConfig.endpoint,
+            customEndpointTrimmed = config.customConfig.endpoint.trim()
+        )
+    }
+
+    private fun logKeyInfo(config: AIConfig, keyInfo: KeyInfo) {
+        println("ViewModel: AI Config validation - Primary provider: ${config.primaryProvider}")
+        println("ViewModel: OpenAI - Raw length: ${keyInfo.openaiKeyRaw.length}, Trimmed length: ${keyInfo.openaiKeyTrimmed.length}")
+        println("ViewModel: Gemini - Raw length: ${keyInfo.geminiKeyRaw.length}, Trimmed length: ${keyInfo.geminiKeyTrimmed.length}")
+        println("ViewModel: Custom - Key length: ${keyInfo.customKeyTrimmed.length}, Endpoint: '${keyInfo.customEndpointTrimmed}'")
+
+        if (keyInfo.openaiKeyRaw != keyInfo.openaiKeyTrimmed && keyInfo.openaiKeyRaw.isNotEmpty()) {
             println("ViewModel: ⚠️ WARNING: OpenAI key has leading/trailing whitespace!")
             android.util.Log.w("MangaLearnJP", "OpenAI API key has whitespace - this may cause validation issues")
         }
-        if (geminiKeyRaw != geminiKeyTrimmed && geminiKeyRaw.isNotEmpty()) {
+        if (keyInfo.geminiKeyRaw != keyInfo.geminiKeyTrimmed && keyInfo.geminiKeyRaw.isNotEmpty()) {
             println("ViewModel: ⚠️ WARNING: Gemini key has leading/trailing whitespace!")
             android.util.Log.w("MangaLearnJP", "Gemini API key has whitespace - this may cause validation issues")
         }
-        
-        // Check individual provider configurations
-        val openaiConfigured = openaiKeyTrimmed.isNotEmpty()
-        val geminiConfigured = geminiKeyTrimmed.isNotEmpty()
-        val customConfigured = customKeyTrimmed.isNotEmpty() && customEndpointTrimmed.isNotEmpty()
-        
+    }
+
+    private data class ProviderDetection(
+        val configuredProviders: List<AIProvider>,
+        val manuallyConfiguredProviders: List<AIProvider>,
+        val effectiveConfiguredProviders: List<AIProvider>
+    )
+
+    private fun detectProviders(config: AIConfig, keyInfo: KeyInfo): ProviderDetection {
+        val openaiConfigured = keyInfo.openaiKeyTrimmed.isNotEmpty()
+        val geminiConfigured = keyInfo.geminiKeyTrimmed.isNotEmpty()
+        val customConfigured = keyInfo.customKeyTrimmed.isNotEmpty() && keyInfo.customEndpointTrimmed.isNotEmpty()
+
         println("ViewModel: Provider status - OpenAI: $openaiConfigured, Gemini: $geminiConfigured, Custom: $customConfigured")
         android.util.Log.d("MangaLearnJP", "Provider status - OpenAI: $openaiConfigured, Gemini: $geminiConfigured, Custom: $customConfigured")
-        
-        // Get configured providers using the built-in method
-        val configuredProviders = currentConfig.getConfiguredProviders()
+
+        val configuredProviders = config.getConfiguredProviders()
         println("ViewModel: Configured providers from getConfiguredProviders(): $configuredProviders")
-        
-        // Double-check with manual validation
+
         val manuallyConfiguredProviders = mutableListOf<AIProvider>()
         if (openaiConfigured) manuallyConfiguredProviders.add(AIProvider.OPENAI)
         if (geminiConfigured) manuallyConfiguredProviders.add(AIProvider.GEMINI)
         if (customConfigured) manuallyConfiguredProviders.add(AIProvider.CUSTOM)
-        
+
         println("ViewModel: Manually detected providers: $manuallyConfiguredProviders")
-        
-        // If there's a mismatch, log it
+
         if (configuredProviders.toSet() != manuallyConfiguredProviders.toSet()) {
             println("ViewModel: ⚠️ MISMATCH between built-in and manual provider detection!")
             android.util.Log.w("MangaLearnJP", "Provider detection mismatch - built-in: $configuredProviders, manual: $manuallyConfiguredProviders")
         }
-        
-        // Use manual validation as fallback if built-in method fails
+
         val effectiveConfiguredProviders = if (configuredProviders.isNotEmpty()) configuredProviders else manuallyConfiguredProviders
-        
-        if (effectiveConfiguredProviders.isEmpty()) {
-            val troubleshootingInfo = buildString {
-                appendLine("\n🔍 Troubleshooting Information:")
-                appendLine("• Primary Provider: ${currentConfig.primaryProvider}")
-                appendLine("• OpenAI Key: ${if (openaiKeyTrimmed.isEmpty()) "❌ Empty" else "✅ ${openaiKeyTrimmed.length} characters"}")
-                appendLine("• Gemini Key: ${if (geminiKeyTrimmed.isEmpty()) "❌ Empty" else "✅ ${geminiKeyTrimmed.length} characters"}")
-                appendLine("• Custom Key: ${if (customKeyTrimmed.isEmpty()) "❌ Empty" else "✅ ${customKeyTrimmed.length} characters"}")
-                appendLine("• Custom Endpoint: ${if (customEndpointTrimmed.isEmpty()) "❌ Empty" else "✅ Configured"}")
-                
-                if (openaiKeyRaw != openaiKeyTrimmed || geminiKeyRaw != geminiKeyTrimmed) {
-                    appendLine("\n⚠️ Detected whitespace in API keys - this may cause issues!")
-                }
-                
-                appendLine("\n💡 Solutions:")
-                appendLine("1. Go to Settings (⚙️ icon)")
-                appendLine("2. Enter a valid API key for at least one provider")
-                appendLine("3. Make sure there are no extra spaces before/after the key")
-                appendLine("4. Try the 'Refresh Config' button in Settings")
-                appendLine("5. If issues persist, try 'Clear All Preferences' and reconfigure")
+        return ProviderDetection(configuredProviders, manuallyConfiguredProviders, effectiveConfiguredProviders)
+    }
+
+    private fun buildNoProviderError(config: AIConfig, keyInfo: KeyInfo): String {
+        val troubleshootingInfo = buildString {
+            appendLine("\n🔍 Troubleshooting Information:")
+            appendLine("• Primary Provider: ${config.primaryProvider}")
+            appendLine("• OpenAI Key: ${if (keyInfo.openaiKeyTrimmed.isEmpty()) "❌ Empty" else "✅ ${keyInfo.openaiKeyTrimmed.length} characters"}")
+            appendLine("• Gemini Key: ${if (keyInfo.geminiKeyTrimmed.isEmpty()) "❌ Empty" else "✅ ${keyInfo.geminiKeyTrimmed.length} characters"}")
+            appendLine("• Custom Key: ${if (keyInfo.customKeyTrimmed.isEmpty()) "❌ Empty" else "✅ ${keyInfo.customKeyTrimmed.length} characters"}")
+            appendLine("• Custom Endpoint: ${if (keyInfo.customEndpointTrimmed.isEmpty()) "❌ Empty" else "✅ Configured"}")
+
+            if (keyInfo.openaiKeyRaw != keyInfo.openaiKeyTrimmed || keyInfo.geminiKeyRaw != keyInfo.geminiKeyTrimmed) {
+                appendLine("\n⚠️ Detected whitespace in API keys - this may cause issues!")
             }
-            
-            val errorMsg = "❌ No AI providers configured. Please set up at least one API key in Settings." + troubleshootingInfo
-            println("ViewModel: Validation failed - No providers configured")
-            android.util.Log.e("MangaLearnJP", "Validation failed - No providers configured. OpenAI: ${openaiKeyTrimmed.length} chars, Gemini: ${geminiKeyTrimmed.length} chars")
-            return errorMsg
+
+            appendLine("\n💡 Solutions:")
+            appendLine("1. Go to Settings (⚙️ icon)")
+            appendLine("2. Enter a valid API key for at least one provider")
+            appendLine("3. Make sure there are no extra spaces before/after the key")
+            appendLine("4. Try the 'Refresh Config' button in Settings")
+            appendLine("5. If issues persist, try 'Clear All Preferences' and reconfigure")
         }
-        
-        // Validate the primary provider specifically
-        val primaryProvider = currentConfig.primaryProvider
-        when (primaryProvider) {
+        return "❌ No AI providers configured. Please set up at least one API key in Settings." + troubleshootingInfo
+    }
+
+    private fun validatePrimaryProvider(config: AIConfig, keyInfo: KeyInfo): String? {
+        return when (config.primaryProvider) {
             AIProvider.OPENAI -> {
-                if (openaiKeyTrimmed.isEmpty()) {
-                    return "❌ OpenAI is set as primary provider but API key is missing.\n\n💡 Solution: Add your OpenAI API key in Settings or switch to a different primary provider."
-                }
-                if (openaiKeyTrimmed.length < 20) {
-                    return "❌ OpenAI API key appears to be invalid (too short: ${openaiKeyTrimmed.length} characters).\n\n💡 Solution: Check your OpenAI API key - it should start with 'sk-' and be much longer."
-                }
-                if (!openaiKeyTrimmed.startsWith("sk-")) {
-                    return "❌ OpenAI API key format appears incorrect (should start with 'sk-').\n\n💡 Solution: Verify you copied the correct API key from OpenAI platform."
+                when {
+                    keyInfo.openaiKeyTrimmed.isEmpty() ->
+                        "❌ OpenAI is set as primary provider but API key is missing.\n\n💡 Solution: Add your OpenAI API key in Settings or switch to a different primary provider."
+                    keyInfo.openaiKeyTrimmed.length < 20 ->
+                        "❌ OpenAI API key appears to be invalid (too short: ${keyInfo.openaiKeyTrimmed.length} characters).\n\n💡 Solution: Check your OpenAI API key - it should start with 'sk-' and be much longer."
+                    !keyInfo.openaiKeyTrimmed.startsWith("sk-") ->
+                        "❌ OpenAI API key format appears incorrect (should start with 'sk-').\n\n💡 Solution: Verify you copied the correct API key from OpenAI platform."
+                    else -> null
                 }
             }
             AIProvider.GEMINI -> {
-                if (geminiKeyTrimmed.isEmpty()) {
-                    return "❌ Gemini is set as primary provider but API key is missing.\n\n💡 Solution: Add your Google Gemini API key in Settings or switch to a different primary provider."
-                }
-                if (geminiKeyTrimmed.length < 20) {
-                    return "❌ Gemini API key appears to be invalid (too short: ${geminiKeyTrimmed.length} characters).\n\n💡 Solution: Check your Gemini API key from Google AI Studio."
+                when {
+                    keyInfo.geminiKeyTrimmed.isEmpty() ->
+                        "❌ Gemini is set as primary provider but API key is missing.\n\n💡 Solution: Add your Google Gemini API key in Settings or switch to a different primary provider."
+                    keyInfo.geminiKeyTrimmed.length < 20 ->
+                        "❌ Gemini API key appears to be invalid (too short: ${keyInfo.geminiKeyTrimmed.length} characters).\n\n💡 Solution: Check your Gemini API key from Google AI Studio."
+                    else -> null
                 }
             }
             AIProvider.CUSTOM -> {
-                if (customKeyTrimmed.isEmpty()) {
-                    return "❌ Custom API is set as primary provider but API key is missing.\n\n💡 Solution: Add your custom API key in Settings or switch to a different primary provider."
-                }
-                if (customEndpointTrimmed.isEmpty()) {
-                    return "❌ Custom API is set as primary provider but endpoint URL is missing.\n\n💡 Solution: Add your custom API endpoint URL in Settings."
-                }
-                if (!customEndpointTrimmed.startsWith("http")) {
-                    return "❌ Custom API endpoint should be a valid URL (starting with http:// or https://).\n\n💡 Solution: Check your endpoint URL format."
+                when {
+                    keyInfo.customKeyTrimmed.isEmpty() ->
+                        "❌ Custom API is set as primary provider but API key is missing.\n\n💡 Solution: Add your custom API key in Settings or switch to a different primary provider."
+                    keyInfo.customEndpointTrimmed.isEmpty() ->
+                        "❌ Custom API is set as primary provider but endpoint URL is missing.\n\n💡 Solution: Add your custom API endpoint URL in Settings."
+                    !keyInfo.customEndpointTrimmed.startsWith("http") ->
+                        "❌ Custom API endpoint should be a valid URL (starting with http:// or https://).\n\n💡 Solution: Check your endpoint URL format."
+                    else -> null
                 }
             }
         }
-        
-        println("ViewModel: ✅ All validations passed - Primary provider: $primaryProvider")
-        android.util.Log.d("MangaLearnJP", "✅ All validations passed - Primary provider: $primaryProvider")
-        Logger.logViewModelAction("Prerequisites validation passed")
-        return null // All validations passed
     }
     
     fun analyzeFullImage() {
@@ -407,10 +438,10 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                     error = "Image analysis failed: ${e.message ?: "Unknown error"}"
                 )
                 Logger.logStateChange("MangaAnalysisViewModel", "processing", "exception")
+            } finally {
+                Logger.logFunctionExit("MangaAnalysisViewModel", "analyzeFullImage")
             }
         }
-        
-        Logger.logFunctionExit("MangaAnalysisViewModel", "analyzeFullImage")
     }
     
     fun analyzeWord(word: String) {
@@ -425,28 +456,36 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         println("ViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
         android.util.Log.d("MangaLearnJP", "ViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
         
-        // Validate the config before saving
-        val trimmedOpenAI = config.openaiConfig.apiKey.trim()
-        val trimmedGemini = config.geminiConfig.apiKey.trim()
-        val trimmedCustomKey = config.customConfig.apiKey.trim()
-        val trimmedCustomEndpoint = config.customConfig.endpoint.trim()
+        // Create a new config with trimmed values to ensure whitespace is removed
+        val cleanedConfig = config.copy(
+            openaiConfig = config.openaiConfig.copy(apiKey = config.openaiConfig.apiKey.trim()),
+            geminiConfig = config.geminiConfig.copy(apiKey = config.geminiConfig.apiKey.trim()),
+            customConfig = config.customConfig.copy(
+                apiKey = config.customConfig.apiKey.trim(),
+                endpoint = config.customConfig.endpoint.trim()
+            )
+        )
         
-        println("ViewModel: Saving config with trimmed values - OpenAI: ${trimmedOpenAI.length} chars, Gemini: ${trimmedGemini.length} chars")
+        // Apply cleaned config directly to UI state immediately for instant feedback
+        _uiState.value = _uiState.value.copy(
+            aiConfig = cleanedConfig,
+            settingsSaved = false
+        )
+        
+        println("ViewModel: Saving config with trimmed values - OpenAI: ${cleanedConfig.openaiConfig.apiKey.length} chars, Gemini: ${cleanedConfig.geminiConfig.apiKey.length} chars")
         
         viewModelScope.launch {
             try {
-                // Clear previous saved status
-                _uiState.value = _uiState.value.copy(settingsSaved = false)
-                
-                preferencesRepository.saveAIConfig(config)
+                // Save to persistent storage
+                preferencesRepository.saveAIConfig(cleanedConfig)
                 println("ViewModel: AI config saved successfully")
                 android.util.Log.d("MangaLearnJP", "ViewModel: AI config saved successfully")
                 
                 // Set saved status to true
                 _uiState.value = _uiState.value.copy(settingsSaved = true)
                 
-                // Force refresh the UI state to pick up the new config with longer delay
-                delay(200) // Increased delay to ensure DataStore has processed the save
+                // Force refresh the UI state to pick up the new config
+                delay(300) // Give DataStore time to persist data
                 refreshAIConfig()
                 
                 // Additional verification
@@ -473,19 +512,19 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         
         viewModelScope.launch {
             try {
-                // Force collect the latest value from DataStore
-                preferencesRepository.aiConfigFlow.collect { latestConfig ->
-                    println("ViewModel: Collected latest config - OpenAI: ${latestConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${latestConfig.geminiConfig.apiKey.trim().length} chars")
-                    android.util.Log.d("MangaLearnJP", "Latest config collected - OpenAI: ${latestConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${latestConfig.geminiConfig.apiKey.trim().length} chars")
-                    
-                    // Log configured providers
-                    val configuredProviders = latestConfig.getConfiguredProviders()
-                    println("ViewModel: Configured providers after refresh: $configuredProviders")
-                    android.util.Log.d("MangaLearnJP", "Configured providers after refresh: $configuredProviders")
-                    
-                    // Only collect once for refresh
-                    return@collect
-                }
+                // Force collect the latest value from DataStore and wait for it
+                val latestConfig = preferencesRepository.aiConfigFlow.first() // Use first() to wait for completion
+                
+                println("ViewModel: Collected latest config - OpenAI: ${latestConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${latestConfig.geminiConfig.apiKey.trim().length} chars")
+                android.util.Log.d("MangaLearnJP", "Latest config collected - OpenAI: ${latestConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${latestConfig.geminiConfig.apiKey.trim().length} chars")
+                
+                // Log configured providers
+                val configuredProviders = latestConfig.getConfiguredProviders()
+                println("ViewModel: Configured providers after refresh: $configuredProviders")
+                android.util.Log.d("MangaLearnJP", "Configured providers after refresh: $configuredProviders")
+                
+                // Update the UI state with the latest config directly
+                _uiState.value = _uiState.value.copy(aiConfig = latestConfig)
             } catch (e: Exception) {
                 println("ViewModel: Error refreshing config: ${e.message}")
                 android.util.Log.e("MangaLearnJP", "Error refreshing AI config", e)
@@ -502,9 +541,18 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             // Wait a bit for any pending saves to complete
             delay(300)
             
-            // Force refresh
-            refreshAIConfig()
-            delay(200)
+            // Get the latest config directly from DataStore
+            val latestConfig = preferencesRepository.aiConfigFlow.first() 
+            
+            // Update the local state with the loaded config
+            _uiState.value = _uiState.value.copy(aiConfig = latestConfig)
+            
+            // Debug log what we got
+            println("ViewModel: Force reloaded config - Primary: ${latestConfig.primaryProvider}")
+            println("ViewModel: Force reloaded config - OpenAI key length: ${latestConfig.openaiConfig.apiKey.length}")
+            println("ViewModel: Force reloaded config - Gemini key length: ${latestConfig.geminiConfig.apiKey.length}")
+            println("ViewModel: Force reloaded config - Configured providers: ${latestConfig.getConfiguredProviders()}")
+            android.util.Log.d("MangaLearnJP", "Force reloaded config - OpenAI key length: ${latestConfig.openaiConfig.apiKey.length}, Gemini key length: ${latestConfig.geminiConfig.apiKey.length}")
             
             // Now validate with the refreshed config
             validateAnalysisPrerequisites()

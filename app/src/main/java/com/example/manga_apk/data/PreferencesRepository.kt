@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -84,36 +85,46 @@ class PreferencesRepository(private val context: Context) {
         }
     
     suspend fun saveAIConfig(config: AIConfig) {
-        println("PreferencesRepository: saveAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
-        android.util.Log.d("MangaLearnJP", "PreferencesRepository: saveAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
+        // Pre-trim all values to ensure consistent storage
+        val trimmedOpenaiKey = config.openaiConfig.apiKey.trim()
+        val trimmedGeminiKey = config.geminiConfig.apiKey.trim()
+        val trimmedCustomKey = config.customConfig.apiKey.trim()
+        val trimmedCustomEndpoint = config.customConfig.endpoint.trim()
         
-        context.dataStore.edit { preferences ->
-            preferences[PRIMARY_PROVIDER_KEY] = config.primaryProvider.name
-            preferences[ENABLE_FALLBACK_KEY] = config.enableFallback
+        println("PreferencesRepository: saveAIConfig called - OpenAI key length: ${trimmedOpenaiKey.length}, Gemini key length: ${trimmedGeminiKey.length}")
+        android.util.Log.d("MangaLearnJP", "PreferencesRepository: saveAIConfig called - OpenAI key length: ${trimmedOpenaiKey.length}, Gemini key length: ${trimmedGeminiKey.length}")
+        
+        try {
+            context.dataStore.edit { preferences ->
+                preferences[PRIMARY_PROVIDER_KEY] = config.primaryProvider.name
+                preferences[ENABLE_FALLBACK_KEY] = config.enableFallback
+                
+                // OpenAI Config
+                preferences[OPENAI_API_KEY] = trimmedOpenaiKey
+                preferences[OPENAI_TEXT_MODEL_KEY] = config.openaiConfig.textModel.trim()
+                preferences[OPENAI_VISION_MODEL_KEY] = config.openaiConfig.visionModel.trim()
+                
+                // Gemini Config
+                preferences[GEMINI_API_KEY] = trimmedGeminiKey
+                preferences[GEMINI_MODEL_KEY] = config.geminiConfig.model.trim()
+                
+                // Custom API Config
+                preferences[CUSTOM_API_KEY] = trimmedCustomKey
+                preferences[CUSTOM_ENDPOINT_KEY] = trimmedCustomEndpoint
+                preferences[CUSTOM_MODEL_KEY] = config.customConfig.model.trim()
+                
+                // General settings
+                preferences[INCLUDE_GRAMMAR_KEY] = config.includeGrammar
+                preferences[INCLUDE_VOCABULARY_KEY] = config.includeVocabulary
+                preferences[INCLUDE_TRANSLATION_KEY] = config.includeTranslation
+            }
             
-            // OpenAI Config - trim whitespace
-            preferences[OPENAI_API_KEY] = config.openaiConfig.apiKey.trim()
-            preferences[OPENAI_TEXT_MODEL_KEY] = config.openaiConfig.textModel.trim()
-            preferences[OPENAI_VISION_MODEL_KEY] = config.openaiConfig.visionModel.trim()
-            
-            // Gemini Config - trim whitespace
-            preferences[GEMINI_API_KEY] = config.geminiConfig.apiKey.trim()
-            preferences[GEMINI_MODEL_KEY] = config.geminiConfig.model.trim()
-            
-            // Custom API Config - trim whitespace
-            preferences[CUSTOM_API_KEY] = config.customConfig.apiKey.trim()
-            preferences[CUSTOM_ENDPOINT_KEY] = config.customConfig.endpoint.trim()
-            preferences[CUSTOM_MODEL_KEY] = config.customConfig.model.trim()
-            
-            // General settings
-            preferences[INCLUDE_GRAMMAR_KEY] = config.includeGrammar
-            preferences[INCLUDE_VOCABULARY_KEY] = config.includeVocabulary
-            preferences[INCLUDE_TRANSLATION_KEY] = config.includeTranslation
+            // Verification after saving can be performed elsewhere if needed to avoid extra suspension and overhead.
+        } catch (e: Exception) {
+            println("PreferencesRepository: ERROR saving config: ${e.message}")
+            android.util.Log.e("MangaLearnJP", "Error saving AI config to DataStore", e)
+            throw e // Rethrow to allow caller to handle
         }
-        
-        // Add debug logging to verify save operation
-        println("PreferencesRepository: Saved AI config - OpenAI key length: ${config.openaiConfig.apiKey.trim().length}, Gemini key length: ${config.geminiConfig.apiKey.trim().length}")
-        android.util.Log.d("MangaLearnJP", "PreferencesRepository: API keys saved - OpenAI: ${if (config.openaiConfig.apiKey.trim().isNotEmpty()) "configured" else "empty"}, Gemini: ${if (config.geminiConfig.apiKey.trim().isNotEmpty()) "configured" else "empty"}")
     }
     
     suspend fun clearAllPreferences() {

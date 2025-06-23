@@ -454,6 +454,24 @@ class AIService {
         // Use the model from custom config
         val modelToUse = config.model
         println("AIService: Using custom API model: $modelToUse")
+        println("AIService: Custom API endpoint: '${config.endpoint}'")
+        println("AIService: Custom API key length: ${config.apiKey.length}")
+        android.util.Log.d("MangaLearnJP", "AIService: Custom API - Endpoint: '${config.endpoint}', Model: '$modelToUse', Key length: ${config.apiKey.length}")
+        
+        // Validate endpoint URL
+        if (config.endpoint.trim().isEmpty()) {
+            val errorMsg = "Custom API endpoint is empty"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
+        
+        if (!config.endpoint.startsWith("http://") && !config.endpoint.startsWith("https://")) {
+            val errorMsg = "Custom API endpoint must start with http:// or https://. Current: '${config.endpoint}'"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
         
         val requestBody = JsonObject().apply {
             addProperty("model", modelToUse)
@@ -482,15 +500,40 @@ class AIService {
         }
         
         return try {
+            println("AIService: Making request to: ${requestBuilder.build().url}")
+            android.util.Log.d("MangaLearnJP", "AIService: Making request to: ${requestBuilder.build().url}")
+            
             val response = client.newCall(requestBuilder.build()).execute()
+            
+            println("AIService: Response code: ${response.code}")
+            println("AIService: Response message: ${response.message}")
+            android.util.Log.d("MangaLearnJP", "AIService: Response code: ${response.code}, message: ${response.message}")
+            
             if (response.isSuccessful) {
                 val responseBody = response.body?.string()
-                parseOpenAIResponse(responseBody) // Use OpenAI format parser
+                if (responseBody != null) {
+                    println("AIService: Successful response received, length: ${responseBody.length}")
+                    parseOpenAIResponse(responseBody) // Use OpenAI format parser
+                } else {
+                    val errorMsg = "Empty response body"
+                    println("AIService: ERROR - $errorMsg")
+                    android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+                    Result.failure(IOException(errorMsg))
+                }
             } else {
-                val errorBody = response.body?.string()
-                Result.failure(IOException("Custom API call failed: ${response.code} - $errorBody"))
+                val errorBody = response.body?.string() ?: "Unknown error"
+                val errorMsg = "Custom API call failed: ${response.code} - $errorBody"
+                println("AIService: ERROR - $errorMsg")
+                println("AIService: Request URL was: ${requestBuilder.build().url}")
+                println("AIService: Request headers: ${requestBuilder.build().headers}")
+                android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+                android.util.Log.e("MangaLearnJP", "AIService: Request URL was: ${requestBuilder.build().url}")
+                Result.failure(IOException(errorMsg))
             }
         } catch (e: Exception) {
+            val errorMsg = "Exception in custom API call: ${e.message}"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg", e)
             Result.failure(IOException("Network error: ${e.message}", e))
         }
     }

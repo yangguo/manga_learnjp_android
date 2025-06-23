@@ -496,6 +496,24 @@ class AIService {
             return Result.failure(IllegalArgumentException(errorMsg))
         }
         
+        // Auto-append correct chat completions path for OpenAI-compatible APIs if not present
+        val finalEndpoint = if (config.endpoint.contains("/chat/completions")) {
+            // Already has chat/completions path, use as-is
+            config.endpoint.trim()
+        } else {
+            val baseUrl = config.endpoint.trim().removeSuffix("/")
+            // For Ark API (doubao), use /chat/completions directly
+            // For standard OpenAI APIs, use /v1/chat/completions
+            if (baseUrl.contains("ark.cn-beijing.volces.com") || baseUrl.contains("/api/v3")) {
+                "$baseUrl/chat/completions"
+            } else {
+                "$baseUrl/v1/chat/completions"
+            }
+        }
+        
+        println("AIService: Final endpoint URL: '$finalEndpoint'")
+        android.util.Log.d("MangaLearnJP", "AIService: Final endpoint URL: '$finalEndpoint'")
+        
         // Validate API key
         if (config.apiKey.trim().isEmpty()) {
             val errorMsg = "Custom API key is empty - please add your API key in Settings"
@@ -544,7 +562,7 @@ class AIService {
         android.util.Log.d("MangaLearnJP", "AIService: Base64 image length: ${base64Image.length} characters")
         
         val requestBuilder = Request.Builder()
-            .url(config.endpoint)
+            .url(finalEndpoint)
             .addHeader("Content-Type", "application/json")
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
         
@@ -589,8 +607,10 @@ class AIService {
                         "Custom API endpoint not found (404). Please check:\n" +
                         "• Is your API server running and accessible?\n" +
                         "• Is the endpoint URL correct for your API provider?\n" +
-                        "• Current endpoint: '${config.endpoint}'\n" +
-                        "• For OpenAI-compatible APIs, try '/v1/chat/completions'\n" +
+                        "• Attempted endpoint: '$finalEndpoint'\n" +
+                        "• Original endpoint: '${config.endpoint}'\n" +
+                        "• For Ark/Doubao APIs: use base URL like 'https://ark.cn-beijing.volces.com/api/v3'\n" +
+                        "• For OpenAI APIs: use 'https://api.openai.com'\n" +
                         "• Try enabling fallback to OpenAI/Gemini in Settings"
                     }
                     401, 403 -> {

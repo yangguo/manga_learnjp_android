@@ -117,15 +117,14 @@ fun MangaApp() {
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onDebugTest = {
-                    mangaViewModel.testAnalysis()
-                },
-                onRefreshConfig = {
+                onSaveSettings = {
+                    // Force save and refresh to ensure settings are persisted
                     mangaViewModel.refreshAIConfig()
                 },
                 onClearPreferences = {
                     mangaViewModel.clearAllPreferences()
-                }
+                },
+                settingsSaved = uiState.settingsSaved
             )
         }
         

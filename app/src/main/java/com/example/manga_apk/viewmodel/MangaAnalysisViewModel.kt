@@ -38,7 +38,8 @@ data class MangaAnalysisUiState(
     val isProcessing: Boolean = false,
     val showSettings: Boolean = false,
     val aiConfig: AIConfig = AIConfig(),
-    val error: String? = null
+    val error: String? = null,
+    val settingsSaved: Boolean = false
 )
 
 class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
@@ -434,9 +435,15 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
         
         viewModelScope.launch {
             try {
+                // Clear previous saved status
+                _uiState.value = _uiState.value.copy(settingsSaved = false)
+                
                 preferencesRepository.saveAIConfig(config)
                 println("ViewModel: AI config saved successfully")
                 android.util.Log.d("MangaLearnJP", "ViewModel: AI config saved successfully")
+                
+                // Set saved status to true
+                _uiState.value = _uiState.value.copy(settingsSaved = true)
                 
                 // Force refresh the UI state to pick up the new config with longer delay
                 delay(200) // Increased delay to ensure DataStore has processed the save
@@ -448,9 +455,14 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                 println("ViewModel: Post-save verification - OpenAI: ${verificationConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${verificationConfig.geminiConfig.apiKey.trim().length} chars")
                 android.util.Log.d("MangaLearnJP", "Post-save verification - OpenAI: ${verificationConfig.openaiConfig.apiKey.trim().length} chars")
                 
+                // Clear saved status after a delay
+                delay(2000)
+                _uiState.value = _uiState.value.copy(settingsSaved = false)
+                
             } catch (e: Exception) {
                 println("ViewModel: Error saving AI config: ${e.message}")
                 android.util.Log.e("MangaLearnJP", "Error saving AI config", e)
+                _uiState.value = _uiState.value.copy(settingsSaved = false)
             }
         }
     }

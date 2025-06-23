@@ -68,16 +68,30 @@ fun MangaAnalysisScreen(
                 )
             },
             actions = {
-                IconButton(onClick = onNavigateToDebugLog) {
+                IconButton(
+                    onClick = onNavigateToDebugLog,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
                     Icon(Icons.Default.BugReport, contentDescription = "Debug Logs")
                 }
-                IconButton(onClick = onNavigateToSettings) {
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = onNavigateToSettings,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = MaterialTheme.colorScheme.onPrimary
+                titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                actionIconContentColor = MaterialTheme.colorScheme.onPrimary
             )
         )
         

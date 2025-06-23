@@ -9,10 +9,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -33,20 +31,31 @@ fun AISettingsScreen(
     aiConfig: AIConfig,
     onConfigUpdate: (AIConfig) -> Unit,
     onNavigateBack: () -> Unit,
-    onDebugTest: (() -> Unit)? = null,
-    onRefreshConfig: (() -> Unit)? = null,
-    onClearPreferences: (() -> Unit)? = null
+    onSaveSettings: (() -> Unit)? = null,
+    onClearPreferences: (() -> Unit)? = null,
+    settingsSaved: Boolean = false
 ) {
     var currentConfig by remember { mutableStateOf(aiConfig) }
     var showOpenAIKey by remember { mutableStateOf(false) }
     var showGeminiKey by remember { mutableStateOf(false) }
     var showCustomKey by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     
     // Update currentConfig when aiConfig changes
     LaunchedEffect(aiConfig) {
         currentConfig = aiConfig
         println("AISettingsScreen: Received aiConfig - OpenAI key length: ${aiConfig.openaiConfig.apiKey.length}, Gemini key length: ${aiConfig.geminiConfig.apiKey.length}")
         android.util.Log.d("MangaLearnJP", "AISettingsScreen: Received aiConfig - OpenAI key length: ${aiConfig.openaiConfig.apiKey.length}, Gemini key length: ${aiConfig.geminiConfig.apiKey.length}")
+    }
+    
+    // Show snackbar when settings are saved
+    LaunchedEffect(settingsSaved) {
+        if (settingsSaved) {
+            snackbarHostState.showSnackbar(
+                message = "✅ Settings saved successfully!",
+                duration = SnackbarDuration.Short
+            )
+        }
     }
     
     Scaffold(
@@ -59,6 +68,9 @@ fun AISettingsScreen(
                     }
                 }
             )
+        },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
         }
     ) { paddingValues ->
         Column(
@@ -363,122 +375,89 @@ fun AISettingsScreen(
                 }
             }
             
-            // Debug Section (only show if debug functions are provided)
-            if (onDebugTest != null || onRefreshConfig != null || onClearPreferences != null) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            // Settings Actions
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        text = "Settings Actions",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    // Save Settings Button
+                    if (onSaveSettings != null) {
+                        Button(
+                            onClick = {
+                                onConfigUpdate(currentConfig)
+                                onSaveSettings()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = 6.dp
+                            )
                         ) {
                             Icon(
-                                imageVector = Icons.Default.BugReport,
-                                contentDescription = "Debug",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "🔧 Debug Tools",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                "💾 Save All Settings",
+                                fontWeight = FontWeight.Bold
                             )
                         }
                         
                         Text(
-                            text = "Having API key issues? Use these diagnostic tools:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = "Click to manually save all your API keys and settings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        
-                        Row(
+                    }
+                    
+                    // Clear Preferences Button
+                    if (onClearPreferences != null) {
+                        Button(
+                            onClick = onClearPreferences,
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = 6.dp
+                            )
                         ) {
-                            if (onDebugTest != null) {
-                                Button(
-                                    onClick = onDebugTest,
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondary,
-                                        contentColor = MaterialTheme.colorScheme.onSecondary
-                                    ),
-                                    elevation = ButtonDefaults.buttonElevation(
-                                        defaultElevation = 4.dp
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Debug Test", fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            
-                            if (onRefreshConfig != null) {
-                                Button(
-                                    onClick = onRefreshConfig,
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.tertiary,
-                                        contentColor = MaterialTheme.colorScheme.onTertiary
-                                    ),
-                                    elevation = ButtonDefaults.buttonElevation(
-                                        defaultElevation = 4.dp
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Refresh", fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                        
-                        if (onClearPreferences != null) {
-                            Button(
-                                onClick = onClearPreferences,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(
-                                    defaultElevation = 6.dp
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteForever,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    "🗑️ Clear All Preferences",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "⚠️ This will permanently delete all saved settings and API keys",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                fontWeight = FontWeight.Medium
+                                "🗑️ Clear All Preferences",
+                                fontWeight = FontWeight.Bold
                             )
                         }
+                        
+                        Text(
+                            text = "⚠️ This will permanently delete all saved settings and API keys",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }

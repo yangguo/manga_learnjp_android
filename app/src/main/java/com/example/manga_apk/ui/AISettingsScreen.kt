@@ -31,7 +31,7 @@ fun AISettingsScreen(
     aiConfig: AIConfig,
     onConfigUpdate: (AIConfig) -> Unit,
     onNavigateBack: () -> Unit,
-    onSaveSettings: (() -> Unit)? = null,
+
     onClearPreferences: (() -> Unit)? = null,
     settingsSaved: Boolean = false
 ) {
@@ -393,12 +393,9 @@ fun AISettingsScreen(
                     )
                     
                     // Save Settings Button
-                    if (onSaveSettings != null) {
+
                         Button(
-                            onClick = {
-                                onConfigUpdate(currentConfig)
-                                onSaveSettings()
-                            },
+                            onClick = { onConfigUpdate(currentConfig) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
@@ -425,7 +422,6 @@ fun AISettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
                     
                     // Clear Preferences Button
                     if (onClearPreferences != null) {

@@ -356,7 +356,7 @@ fun MangaAnalysisScreen(
                                         onClick = { 
                                             viewModel.clearError()
                                             if (uiState.selectedImage != null) {
-                                                viewModel.analyzeImage()
+                                                viewModel.analyzeFullImage()
                                             }
                                         },
                                         modifier = Modifier.weight(1f),

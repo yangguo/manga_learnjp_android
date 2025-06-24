@@ -18,6 +18,7 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import kotlin.math.pow
 
 /**
  * AIService with enhanced JSON parsing capabilities

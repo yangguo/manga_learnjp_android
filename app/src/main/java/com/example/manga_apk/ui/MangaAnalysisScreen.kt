@@ -305,6 +305,74 @@ fun MangaAnalysisScreen(
                                 }
                             }
                         }
+                    } else if (error.contains("timeout") || error.contains("Network error: timeout") || error.contains("Request failed after")) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Text(
+                                    text = "⏱️ Network Timeout Issue:",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "• The API request took too long to complete\n" +
+                                            "• This is common with large images or slow connections\n" +
+                                            "• The app now uses extended timeouts and retry logic\n" +
+                                            "• Try reducing image size or using a different network\n" +
+                                            "• Consider switching to a faster AI provider\n" +
+                                            "• Check if your API server is responsive",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = onNavigateToSettings,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Settings", fontSize = 12.sp)
+                                    }
+                                    
+                                    Button(
+                                        onClick = { 
+                                            viewModel.clearError()
+                                            if (uiState.selectedImage != null) {
+                                                viewModel.analyzeImage()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = uiState.selectedImage != null && !uiState.isProcessing
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Retry", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
                     } else if (error.contains("404") || error.contains("Custom API")) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Card(

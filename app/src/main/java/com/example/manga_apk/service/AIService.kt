@@ -43,6 +43,13 @@ class AIService {
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
     
+    // Extended timeout client for image analysis operations
+    private val extendedTimeoutClient = OkHttpClient.Builder()
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(180, TimeUnit.SECONDS)  // 3 minutes for image analysis
+        .writeTimeout(120, TimeUnit.SECONDS) // 2 minutes for upload
+        .build()
+    
     private val gson = Gson()
     
     // TODO: Consider upgrading to Moshi or Kotlinx.serialization for better Kotlin support
@@ -103,11 +110,13 @@ class AIService {
     
     init {
         Logger.i(Logger.Category.AI_SERVICE, "Initialized with client: ${client.javaClass.simpleName}")
-        Logger.i(Logger.Category.AI_SERVICE, "Client timeouts - Connect: ${client.connectTimeoutMillis}ms, Read: ${client.readTimeoutMillis}ms, Write: ${client.writeTimeoutMillis}ms")
+        Logger.i(Logger.Category.AI_SERVICE, "Standard client timeouts - Connect: ${client.connectTimeoutMillis}ms, Read: ${client.readTimeoutMillis}ms, Write: ${client.writeTimeoutMillis}ms")
+        Logger.i(Logger.Category.AI_SERVICE, "Extended client timeouts - Connect: ${extendedTimeoutClient.connectTimeoutMillis}ms, Read: ${extendedTimeoutClient.readTimeoutMillis}ms, Write: ${extendedTimeoutClient.writeTimeoutMillis}ms")
         
         // Add debug logging to check if Logger is working
         println("AIService: Logger initialization test")
         android.util.Log.d("MangaLearnJP", "AIService: Direct Android Log test")
+        android.util.Log.d("MangaLearnJP", "AIService: Extended timeout client configured for image analysis")
     }
     
     suspend fun testNetworkConnection(): Boolean = withContext(Dispatchers.IO) {
@@ -119,7 +128,8 @@ class AIService {
                 .head() // Use HEAD request for faster response
                 .build()
             
-            val response = client.newCall(request).execute()
+            // Use extended timeout client for image analysis
+            val response = extendedTimeoutClient.newCall(request).execute()
             val isSuccessful = response.isSuccessful
             
             Logger.i(Logger.Category.NETWORK, "Network test result: $isSuccessful (status: ${response.code})")
@@ -316,7 +326,8 @@ class AIService {
             println("AIService: Making HTTP request to OpenAI API")
             android.util.Log.d("MangaLearnJP", "AIService: Making HTTP request to OpenAI API")
             
-            val response = client.newCall(request).execute()
+            // Use extended timeout client for image analysis
+            val response = extendedTimeoutClient.newCall(request).execute()
             Logger.i(Logger.Category.NETWORK, "Response received, status: ${response.code}")
             Logger.i(Logger.Category.NETWORK, "Response headers: ${response.headers}")
             
@@ -467,7 +478,8 @@ class AIService {
             .build()
         
         return try {
-            val response = client.newCall(request).execute()
+            // Use extended timeout client for image analysis
+            val response = extendedTimeoutClient.newCall(request).execute()
             if (response.isSuccessful) {
                 val responseBody = response.body?.string()
                 parseGeminiResponse(responseBody)
@@ -616,7 +628,8 @@ class AIService {
             println("AIService: Making request to: ${requestBuilder.build().url}")
             android.util.Log.d("MangaLearnJP", "AIService: Making request to: ${requestBuilder.build().url}")
             
-            val response = client.newCall(requestBuilder.build()).execute()
+            // Use extended timeout client for image analysis with retry logic
+            val response = executeWithRetry(requestBuilder.build(), maxRetries = 2)
             
             println("AIService: Response code: ${response.code}")
             println("AIService: Response message: ${response.message}")
@@ -681,6 +694,61 @@ class AIService {
             android.util.Log.e("MangaLearnJP", "AIService: $errorMsg", e)
             Result.failure(IOException("Network error: ${e.message}", e))
         }
+    }
+    
+    /**
+     * Execute HTTP request with retry logic and extended timeouts for image analysis
+     */
+    private fun executeWithRetry(request: Request, maxRetries: Int = 2): Response {
+        var lastException: Exception? = null
+        
+        for (attempt in 0..maxRetries) {
+            try {
+                if (attempt > 0) {
+                    val delayMs = (1000 * kotlin.math.pow(2.0, attempt.toDouble())).toLong() // Exponential backoff
+                    println("AIService: Retry attempt $attempt after ${delayMs}ms delay")
+                    android.util.Log.d("MangaLearnJP", "AIService: Retry attempt $attempt after ${delayMs}ms delay")
+                    Thread.sleep(delayMs)
+                }
+                
+                println("AIService: Executing request (attempt ${attempt + 1}/${maxRetries + 1}) with extended timeout")
+                android.util.Log.d("MangaLearnJP", "AIService: Executing request (attempt ${attempt + 1}/${maxRetries + 1})")
+                
+                return extendedTimeoutClient.newCall(request).execute()
+                
+            } catch (e: java.net.SocketTimeoutException) {
+                lastException = e
+                val timeoutType = when {
+                    e.message?.contains("connect") == true -> "connection"
+                    e.message?.contains("read") == true -> "read"
+                    else -> "network"
+                }
+                
+                println("AIService: ${timeoutType.capitalize()} timeout on attempt ${attempt + 1}: ${e.message}")
+                android.util.Log.w("MangaLearnJP", "AIService: ${timeoutType.capitalize()} timeout on attempt ${attempt + 1}: ${e.message}")
+                
+                if (attempt == maxRetries) {
+                    val errorMsg = "Request failed after ${maxRetries + 1} attempts due to ${timeoutType} timeout. " +
+                            "This may indicate: \n" +
+                            "• The API server is overloaded or slow\n" +
+                            "• Network connectivity issues\n" +
+                            "• Large image processing taking longer than expected\n" +
+                            "• Try again later or check your network connection"
+                    throw IOException(errorMsg, e)
+                }
+            } catch (e: Exception) {
+                lastException = e
+                println("AIService: Network error on attempt ${attempt + 1}: ${e.message}")
+                android.util.Log.w("MangaLearnJP", "AIService: Network error on attempt ${attempt + 1}: ${e.message}")
+                
+                if (attempt == maxRetries) {
+                    throw e
+                }
+            }
+        }
+        
+        // This should never be reached, but just in case
+        throw lastException ?: IOException("Request failed after $maxRetries retries")
     }
     
     private fun parseOpenAIResponse(responseBody: String?): Result<TextAnalysis> {

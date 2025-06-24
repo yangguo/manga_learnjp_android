@@ -236,8 +236,76 @@ fun MangaAnalysisScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    // Specific guidance for API errors
-                    if (error.contains("404") || error.contains("Custom API")) {
+                    // Specific guidance for different types of errors
+                    if (error.contains("JSON parsing failed") || error.contains("Expected BEGIN_OBJECT but was STRING")) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Text(
+                                    text = "📝 JSON Parsing Issue:",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "• The AI returned text instead of structured JSON data\n" +
+                                            "• This is usually due to API configuration issues\n" +
+                                            "• The app will automatically use fallback parsing\n" +
+                                            "• Try using a different AI provider (OpenAI/Gemini)\n" +
+                                            "• Check your API settings and prompts\n" +
+                                            "• Enable enhanced fallback mode in settings",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = onNavigateToSettings,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("AI Settings", fontSize = 12.sp)
+                                    }
+                                    
+                                    Button(
+                                        onClick = { 
+                                            viewModel.clearError()
+                                            if (uiState.selectedImage != null) {
+                                                viewModel.analyzeWithFallback()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = uiState.selectedImage != null && !uiState.isProcessing
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Retry", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    } else if (error.contains("404") || error.contains("Custom API")) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Card(
                             colors = CardDefaults.cardColors(

@@ -19,6 +19,23 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
+/**
+ * AIService with enhanced JSON parsing capabilities
+ * 
+ * JSON Handling Improvements based on Android Kotlin best practices:
+ * 1. Defensive parsing with null safety validation
+ * 2. Multiple parsing strategies (direct parsing + JsonObject fallback)
+ * 3. Flexible field name matching (camelCase, snake_case variations)
+ * 4. Safe array parsing with exception handling
+ * 5. Comprehensive error logging and fallback mechanisms
+ * 6. Content validation before and after parsing
+ * 
+ * These improvements address common JSON parsing issues:
+ * - "Expected BEGIN_OBJECT but was STRING" errors
+ * - Null pointer exceptions from missing fields
+ * - Inconsistent field naming between API responses
+ * - Malformed JSON from AI providers
+ */
 class AIService {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -27,6 +44,11 @@ class AIService {
         .build()
     
     private val gson = Gson()
+    
+    // TODO: Consider upgrading to Moshi or Kotlinx.serialization for better Kotlin support
+    // Moshi provides better null safety and performance (30% faster serialization)
+    // Kotlinx.serialization offers compile-time safety and better integration with Kotlin
+    // Reference: https://github.com/square/moshi or https://github.com/Kotlin/kotlinx.serialization
     
     // Enhanced prompts for better manga analysis
     private val mangaAnalysisPrompt = """
@@ -657,7 +679,13 @@ class AIService {
                 return Result.failure(Exception("Empty response body"))
             }
             
-            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            val jsonResponse = try {
+                gson.fromJson(responseBody, JsonObject::class.java)
+            } catch (e: JsonSyntaxException) {
+                Logger.logError("parseOpenAIResponse", "Invalid JSON response: ${e.message}")
+                Logger.d(Logger.Category.AI_SERVICE, "Response body preview: ${responseBody.take(500)}")
+                return Result.failure(Exception("Invalid JSON response from OpenAI: ${e.message}"))
+            }
             
             val choices = jsonResponse.getAsJsonArray("choices")
             if (choices == null || choices.size() == 0) {
@@ -681,7 +709,13 @@ class AIService {
     
     private fun parseOpenAIResponseEnhanced(responseBody: String): TextAnalysis {
         try {
-            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            val jsonResponse = try {
+                gson.fromJson(responseBody, JsonObject::class.java)
+            } catch (e: JsonSyntaxException) {
+                Logger.logError("parseOpenAIResponseEnhanced", "Invalid JSON response: ${e.message}")
+                Logger.d(Logger.Category.AI_SERVICE, "Response body preview: ${responseBody.take(500)}")
+                return createFallbackAnalysis("Invalid JSON response from OpenAI: ${e.message}")
+            }
             
             // Check for errors first
             if (jsonResponse.has("error")) {
@@ -714,7 +748,13 @@ class AIService {
                 return Result.failure(IOException("Empty response body"))
             }
             
-            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            val jsonResponse = try {
+                gson.fromJson(responseBody, JsonObject::class.java)
+            } catch (e: JsonSyntaxException) {
+                Logger.logError("parseGeminiResponse", "Invalid JSON response: ${e.message}")
+                Logger.d(Logger.Category.AI_SERVICE, "Response body preview: ${responseBody.take(500)}")
+                return Result.failure(IOException("Invalid JSON response from Gemini: ${e.message}"))
+            }
             
             if (jsonResponse.has("error")) {
                 val error = jsonResponse.getAsJsonObject("error")
@@ -741,7 +781,13 @@ class AIService {
     
     private fun parseGeminiResponseEnhanced(responseBody: String): TextAnalysis {
         try {
-            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            val jsonResponse = try {
+                gson.fromJson(responseBody, JsonObject::class.java)
+            } catch (e: JsonSyntaxException) {
+                Logger.logError("parseGeminiResponseEnhanced", "Invalid JSON response: ${e.message}")
+                Logger.d(Logger.Category.AI_SERVICE, "Response body preview: ${responseBody.take(500)}")
+                return createFallbackAnalysis("Invalid JSON response from Gemini: ${e.message}")
+            }
             
             // Enhanced error checking
             if (jsonResponse.has("error")) {
@@ -793,27 +839,33 @@ class AIService {
             android.util.Log.d("MangaLearnJP", "AIService: Parsing content length: ${content.length}")
             android.util.Log.d("MangaLearnJP", "AIService: Content preview: ${content.take(300)}...")
             
-            // Try to parse as JSON first
-            val gson = Gson()
-            val analysis = gson.fromJson(content, TextAnalysis::class.java)
+            // Enhanced JSON parsing with better validation
+            val cleanedContent = cleanJsonContent(content)
             
-            if (analysis == null) {
-                println("AIService: Parsed analysis is null, creating fallback")
-                android.util.Log.w("MangaLearnJP", "AIService: Parsed analysis is null")
-                throw Exception("Parsed analysis is null")
+            // Check if content looks like JSON
+            if (isValidJsonStructure(cleanedContent)) {
+                val analysis = parseJsonWithValidation(cleanedContent)
+                if (analysis != null) {
+                    println("AIService: Successfully parsed JSON analysis - Translation: ${analysis.translation.take(100)}...")
+                    android.util.Log.d("MangaLearnJP", "AIService: Successfully parsed JSON analysis")
+                    Logger.i(Logger.Category.AI_SERVICE, "Successfully parsed JSON analysis with enhanced validation")
+                    return Result.success(analysis)
+                }
+                Logger.w(Logger.Category.AI_SERVICE, "Enhanced JSON parsing failed, content may not be valid JSON")
+                println("AIService: Enhanced JSON parsing failed")
             }
             
-            println("AIService: Successfully parsed JSON analysis - Translation: ${analysis.translation.take(100)}...")
-            android.util.Log.d("MangaLearnJP", "AIService: Successfully parsed JSON analysis")
-            Logger.i(Logger.Category.AI_SERVICE, "Successfully parsed JSON analysis")
-            Result.success(analysis)
+            // If JSON parsing fails, try enhanced fallback parsing
+            Logger.w(Logger.Category.AI_SERVICE, "JSON parsing failed, attempting enhanced fallback parsing")
+            val fallbackAnalysis = parseAnalysisContentEnhanced(content)
+            Result.success(fallbackAnalysis)
             
         } catch (e: Exception) {
-            println("AIService: JSON parsing failed: ${e.message}")
-            android.util.Log.w("MangaLearnJP", "AIService: JSON parsing failed: ${e.message}")
-            Logger.w(Logger.Category.AI_SERVICE, "JSON parsing failed, attempting fallback parsing: ${e.message}")
+            println("AIService: Analysis parsing failed: ${e.message}")
+            android.util.Log.w("MangaLearnJP", "AIService: Analysis parsing failed: ${e.message}")
+            Logger.w(Logger.Category.AI_SERVICE, "Analysis parsing failed, creating basic fallback: ${e.message}")
             
-            // Fallback: create a simple analysis with the raw content
+            // Basic fallback: create a simple analysis with the raw content
             val fallbackAnalysis = TextAnalysis(
                 originalText = "Content received but failed to parse as structured data",
                 vocabulary = emptyList(),
@@ -822,33 +874,168 @@ class AIService {
                 context = "Analysis parsing failed. This may be due to API response format. Raw content available in translation field."
             )
             
-            println("AIService: Created fallback analysis with translation: ${fallbackAnalysis.translation.take(100)}...")
-            android.util.Log.d("MangaLearnJP", "AIService: Created fallback analysis")
-            Logger.i(Logger.Category.AI_SERVICE, "Created fallback analysis")
+            println("AIService: Created basic fallback analysis with translation: ${fallbackAnalysis.translation.take(100)}...")
+            android.util.Log.d("MangaLearnJP", "AIService: Created basic fallback analysis")
+            Logger.i(Logger.Category.AI_SERVICE, "Created basic fallback analysis")
             Result.success(fallbackAnalysis)
+        }
+    }
+    
+    private fun cleanJsonContent(content: String): String {
+        var cleaned = content.trim()
+        
+        // Remove markdown code blocks if present
+        if (cleaned.contains("```json")) {
+            cleaned = cleaned.substringAfter("```json")
+                .substringBefore("```")
+                .trim()
+        } else if (cleaned.contains("```")) {
+            cleaned = cleaned.substringAfter("```")
+                .substringBefore("```")
+                .trim()
+        }
+        
+        // Remove any leading/trailing non-JSON characters
+        val startIndex = cleaned.indexOfFirst { it == '{' || it == '[' }
+        val endIndex = cleaned.indexOfLast { it == '}' || it == ']' }
+        
+        if (startIndex != -1 && endIndex != -1 && startIndex <= endIndex) {
+            cleaned = cleaned.substring(startIndex, endIndex + 1)
+        }
+        
+        return cleaned
+    }
+    
+    private fun isValidJsonStructure(content: String): Boolean {
+        val trimmed = content.trim()
+        return (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+               (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    }
+    
+    /**
+     * Enhanced JSON parsing with validation based on Android Kotlin best practices
+     * Implements defensive parsing with null safety and proper error handling
+     */
+    private fun parseJsonWithValidation(jsonContent: String): TextAnalysis? {
+        return try {
+            // First attempt: Direct parsing
+            val analysis = gson.fromJson(jsonContent, TextAnalysis::class.java)
+            
+            // Validate parsed object - ensure critical fields are not null/empty
+            if (analysis != null && validateTextAnalysis(analysis)) {
+                Logger.i(Logger.Category.AI_SERVICE, "JSON parsing successful with validation")
+                return analysis
+            }
+            
+            // Second attempt: Try parsing as JsonObject first for better error handling
+            val jsonObject = gson.fromJson(jsonContent, JsonObject::class.java)
+            if (jsonObject != null) {
+                return parseFromJsonObject(jsonObject)
+            }
+            
+            Logger.w(Logger.Category.AI_SERVICE, "JSON parsing validation failed")
+            null
+        } catch (e: JsonSyntaxException) {
+            Logger.w(Logger.Category.AI_SERVICE, "JSON syntax error in enhanced parser: ${e.message}")
+            null
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Unexpected error in JSON parsing: ${e.message}")
+            null
+        }
+    }
+    
+    /**
+     * Validates TextAnalysis object to ensure it has meaningful content
+     */
+    private fun validateTextAnalysis(analysis: TextAnalysis): Boolean {
+        return !analysis.translation.isNullOrBlank() || 
+               !analysis.originalText.isNullOrBlank() ||
+               analysis.vocabulary.isNotEmpty() ||
+               analysis.grammarPatterns.isNotEmpty()
+    }
+    
+    /**
+     * Parse TextAnalysis from JsonObject with defensive null checking
+     */
+    private fun parseFromJsonObject(jsonObject: JsonObject): TextAnalysis? {
+        return try {
+            val originalText = jsonObject.get("originalText")?.asString ?: 
+                              jsonObject.get("original_text")?.asString ?: 
+                              jsonObject.get("text")?.asString ?: ""
+            
+            val translation = jsonObject.get("translation")?.asString ?: 
+                             jsonObject.get("english")?.asString ?: 
+                             jsonObject.get("meaning")?.asString ?: ""
+            
+            val context = jsonObject.get("context")?.asString ?: 
+                         jsonObject.get("situation")?.asString ?: ""
+            
+            // Parse vocabulary array safely
+            val vocabulary = try {
+                val vocabArray = jsonObject.getAsJsonArray("vocabulary")
+                vocabArray?.map { element ->
+                    val vocabObj = element.asJsonObject
+                    VocabularyItem(
+                        word = vocabObj.get("word")?.asString ?: "",
+                        reading = vocabObj.get("reading")?.asString ?: "",
+                        meaning = vocabObj.get("meaning")?.asString ?: "",
+                        partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: ""
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse vocabulary: ${e.message}")
+                emptyList<VocabularyItem>()
+            }
+            
+            // Parse grammar patterns array safely
+            val grammarPatterns = try {
+                val grammarArray = jsonObject.getAsJsonArray("grammarPatterns")
+                grammarArray?.map { element ->
+                    val grammarObj = element.asJsonObject
+                    GrammarPattern(
+                        pattern = grammarObj.get("pattern")?.asString ?: "",
+                        explanation = grammarObj.get("explanation")?.asString ?: "",
+                        example = grammarObj.get("example")?.asString ?: "",
+                        difficulty = grammarObj.get("difficulty")?.asString ?: ""
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse grammar patterns: ${e.message}")
+                emptyList<GrammarPattern>()
+            }
+            
+            TextAnalysis(
+                originalText = originalText,
+                translation = translation,
+                vocabulary = vocabulary,
+                grammarPatterns = grammarPatterns,
+                context = context
+            )
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Failed to parse from JsonObject: ${e.message}")
+            null
         }
     }
     
     private fun parseAnalysisContentEnhanced(content: String): TextAnalysis {
         return try {
-            // First, try to extract JSON from the content if it's wrapped in markdown
-            val jsonContent = if (content.contains("```json")) {
-                content.substringAfter("```json")
-                    .substringBefore("```")
-                    .trim()
-            } else if (content.contains("```")) {
-                content.substringAfter("```")
-                    .substringBefore("```")
-                    .trim()
-            } else {
-                content.trim()
+            // Use the improved JSON cleaning function
+            val cleanedContent = cleanJsonContent(content)
+            
+            // Try to parse as JSON if it looks like valid JSON structure
+            if (isValidJsonStructure(cleanedContent)) {
+                try {
+                    val analysis = gson.fromJson(cleanedContent, TextAnalysis::class.java)
+                    if (analysis != null && !analysis.translation.isNullOrBlank()) {
+                        Logger.i(Logger.Category.AI_SERVICE, "Enhanced JSON parsing successful")
+                        return analysis
+                    }
+                } catch (e: JsonSyntaxException) {
+                    Logger.w(Logger.Category.AI_SERVICE, "Enhanced JSON parsing failed: ${e.message}")
+                }
             }
             
-            // Try to parse as JSON
-            gson.fromJson(jsonContent, TextAnalysis::class.java)
-        } catch (e: JsonSyntaxException) {
-            Logger.w(Logger.Category.AI_SERVICE, "Enhanced JSON parsing failed, using intelligent fallback")
-            
+            Logger.w(Logger.Category.AI_SERVICE, "JSON structure invalid, using intelligent text parsing")
             // Enhanced fallback parsing with better text extraction
             parseContentIntelligently(content)
         } catch (e: Exception) {

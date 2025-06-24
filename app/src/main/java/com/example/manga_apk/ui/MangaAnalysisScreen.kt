@@ -1068,7 +1068,11 @@ fun SimpleAnalysisSection(
                 }
             }
         } else {
-            AnalysisResultCard(analysis = analysis)
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                AnalysisResultCard(analysis = analysis)
+            }
             
             Button(
                 onClick = onAnalyze,
@@ -1258,7 +1262,7 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
-            
+
             if (analysis.originalText.isNotEmpty()) {
                 Text(
                     "Original Text:",
@@ -1271,7 +1275,7 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                     fontSize = 14.sp
                 )
             }
-            
+
             Text(
                 "Translation:",
                 fontSize = 14.sp,
@@ -1282,7 +1286,7 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                 analysis.translation,
                 fontSize = 14.sp
             )
-            
+
             if (analysis.vocabulary.isNotEmpty()) {
                 Text(
                     "Vocabulary:",
@@ -1290,7 +1294,7 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary
                 )
-                
+
                 analysis.vocabulary.take(5).forEach { vocab ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),

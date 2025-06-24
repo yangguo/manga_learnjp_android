@@ -2,7 +2,15 @@ package com.example.manga_apk.service
 
 import android.graphics.Bitmap
 import android.util.Base64
-import com.example.manga_apk.data.*
+import com.example.manga_apk.data.AIConfig
+import com.example.manga_apk.data.AIProvider
+import com.example.manga_apk.data.CustomAPIConfig
+import com.example.manga_apk.data.GeminiConfig
+import com.example.manga_apk.data.GrammarPattern
+import com.example.manga_apk.data.OpenAIConfig
+import com.example.manga_apk.data.SentenceAnalysis
+import com.example.manga_apk.data.TextAnalysis
+import com.example.manga_apk.data.VocabularyItem
 import com.example.manga_apk.utils.Logger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -67,35 +75,40 @@ class AIService {
     // Enhanced prompts for better manga analysis
     private val mangaAnalysisPrompt = """
         You are an expert Japanese language tutor specializing in manga analysis. 
-        Analyze the provided manga panel image and extract ALL Japanese text with detailed linguistic analysis.
-        
-        IMPORTANT: Extract ALL text elements from the image including:
-        - All speech bubbles and dialogue
-        - Sound effects (onomatopoeia)
-        - Background text and signs
-        - Narration boxes
-        - Any other Japanese text visible
-        
-        Combine ALL extracted text elements into a single comprehensive analysis:
-        1. Original Japanese text (combine ALL text found, separated by line breaks or spaces as appropriate)
-        2. Complete English translation (translate ALL text found)
-        3. Vocabulary breakdown for ALL words found
-        4. Grammar patterns from ALL text
-        5. Cultural context and nuances
-        
-        Focus on:
-        - Accurate OCR of Japanese characters (hiragana, katakana, kanji)
-        - Extract EVERY piece of text, not just the first or most prominent
-        - Maintain reading order when combining text
-        - Include context for each text element
-        
-        Return the analysis in JSON format with this structure:
+        Analyze the provided manga panel image and extract ALL Japanese text, then perform a sentence-by-sentence analysis.
+
+        **Instructions:**
+        1.  **Extract ALL Text:** Identify and extract every piece of Japanese text from the image, including dialogue, narration, and sound effects.
+        2.  **Split into Sentences:** Divide the extracted text into individual sentences or logical phrases.
+        3.  **Analyze Each Sentence:** For each sentence, provide:
+            *   `originalSentence`: The sentence in Japanese.
+            *   `translation`: The English translation of the sentence.
+            *   `vocabulary`: A breakdown of key vocabulary words in that sentence.
+        4.  **Provide Overall Analysis:** After analyzing all sentences, provide a combined summary including:
+            *   `originalText`: All extracted Japanese text combined.
+            *   `translation`: A complete English translation of all text.
+            *   `grammarPatterns`: A list of grammar patterns found anywhere in the text.
+            *   `context`: Any relevant cultural or contextual notes.
+
+        **JSON Output Structure:**
+        Return the analysis in a JSON object with the following structure:
         {
-          "originalText": "ALL Japanese text found (combined)",
-          "translation": "Complete English translation of ALL text",
-          "vocabulary": [vocabulary items from ALL text],
-          "grammarPatterns": [grammar patterns from ALL text],
-          "context": "Context and cultural notes for ALL text elements"
+          "originalText": "(all Japanese text combined)",
+          "translation": "(full English translation)",
+          "sentenceAnalyses": [
+            {
+              "originalSentence": "(first Japanese sentence)",
+              "translation": "(English translation of first sentence)",
+              "vocabulary": [{"word": "", "reading": "", "meaning": ""}]
+            },
+            {
+              "originalSentence": "(second Japanese sentence)",
+              "translation": "(English translation of second sentence)",
+              "vocabulary": [{"word": "", "reading": "", "meaning": ""}]
+            }
+          ],
+          "grammarPatterns": [{"pattern": "", "explanation": "", "usage": ""}],
+          "context": "(cultural and contextual notes)"
         }
     """.trimIndent()
     

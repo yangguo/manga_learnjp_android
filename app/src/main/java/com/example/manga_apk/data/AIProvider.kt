@@ -84,13 +84,7 @@ data class GrammarPattern(
     val difficulty: String
 )
 
-data class TextAnalysis(
-    val originalText: String,
-    val vocabulary: List<VocabularyItem>,
-    val grammarPatterns: List<GrammarPattern>,
-    val translation: String,
-    val context: String
-)
+
 
 data class PanelSegment(
     val id: String,

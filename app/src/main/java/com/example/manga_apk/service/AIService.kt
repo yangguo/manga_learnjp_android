@@ -12,9 +12,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ConnectionPool
 import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.net.ConnectException
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
@@ -42,6 +44,8 @@ class AIService {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
         .build()
     
     // Extended timeout client for image analysis operations
@@ -49,6 +53,8 @@ class AIService {
         .connectTimeout(45, TimeUnit.SECONDS)
         .readTimeout(180, TimeUnit.SECONDS)  // 3 minutes for image analysis
         .writeTimeout(120, TimeUnit.SECONDS) // 2 minutes for upload
+        .retryOnConnectionFailure(true)
+        .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
         .build()
     
     private val gson = Gson()
@@ -689,6 +695,24 @@ class AIService {
                 android.util.Log.e("MangaLearnJP", "AIService: Request URL was: ${requestBuilder.build().url}")
                 Result.failure(IOException(detailedErrorMsg))
             }
+        } catch (e: SocketException) {
+            val connectionType = when {
+                e.message?.contains("connection abort") == true -> "connection abort"
+                e.message?.contains("connection reset") == true -> "connection reset"
+                e.message?.contains("broken pipe") == true -> "broken pipe"
+                else -> "socket error"
+            }
+            val errorMsg = "Network ${connectionType} in custom API call: ${e.message}. " +
+                    "This may indicate network instability or server issues. Try again later."
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg", e)
+            Result.failure(IOException("Network error: ${connectionType}", e))
+        } catch (e: SocketTimeoutException) {
+            val errorMsg = "Timeout in custom API call: ${e.message}. " +
+                    "The request took too long to complete. Try again later."
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg", e)
+            Result.failure(IOException("Network error: timeout", e))
         } catch (e: Exception) {
             val errorMsg = "Exception in custom API call: ${e.message}"
             println("AIService: ERROR - $errorMsg")
@@ -735,6 +759,27 @@ class AIService {
                             "• Network connectivity issues\n" +
                             "• Large image processing taking longer than expected\n" +
                             "• Try again later or check your network connection"
+                    throw IOException(errorMsg, e)
+                }
+            } catch (e: java.net.SocketException) {
+                lastException = e
+                val connectionType = when {
+                    e.message?.contains("connection abort") == true -> "connection abort"
+                    e.message?.contains("connection reset") == true -> "connection reset"
+                    e.message?.contains("broken pipe") == true -> "broken pipe"
+                    else -> "socket error"
+                }
+                
+                println("AIService: Socket ${connectionType} on attempt ${attempt + 1}: ${e.message}")
+                android.util.Log.w("MangaLearnJP", "AIService: Socket ${connectionType} on attempt ${attempt + 1}: ${e.message}")
+                
+                if (attempt == maxRetries) {
+                    val errorMsg = "Request failed after ${maxRetries + 1} attempts due to ${connectionType}. " +
+                            "This may indicate: \n" +
+                            "• Unstable network connection\n" +
+                            "• API server connection issues\n" +
+                            "• Firewall or proxy interference\n" +
+                            "• Try again later or check your network settings"
                     throw IOException(errorMsg, e)
                 }
             } catch (e: Exception) {

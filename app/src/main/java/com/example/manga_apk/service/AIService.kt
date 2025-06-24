@@ -730,7 +730,7 @@ class AIService {
         for (attempt in 0..maxRetries) {
             try {
                 if (attempt > 0) {
-                    val delayMs = (1000 * pow(2.0, attempt.toDouble())).toLong() // Exponential backoff
+                                        val delayMs = (1000 * 2.0.pow(attempt)).toLong() // Exponential backoff
                     println("AIService: Retry attempt $attempt after ${delayMs}ms delay")
                     android.util.Log.d("MangaLearnJP", "AIService: Retry attempt $attempt after ${delayMs}ms delay")
                     Thread.sleep(delayMs)

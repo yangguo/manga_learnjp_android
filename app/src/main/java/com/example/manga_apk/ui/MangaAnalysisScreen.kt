@@ -774,14 +774,13 @@ fun PanelAnalysisSection(
     onBackToUpload: () -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Header with back button
+        // Header with back button - Fixed at top
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -805,53 +804,65 @@ fun PanelAnalysisSection(
             }
         }
         
-        if (selectedImage == null) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Text(
-                    text = "Please upload an image first to analyze panels.",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        } else if (panels.isEmpty() && !isProcessing) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Text(
-                    text = "No panels detected. The image will be automatically segmented.",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        } else if (isProcessing) {
-            Card {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        // Scrollable content area
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (selectedImage == null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Segmenting panels...")
+                    Text(
+                        text = "Please upload an image first to analyze panels.",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
-            }
-        } else {
-            Text(
-                text = "Detected ${panels.size} panels",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            panels.forEach { panel ->
-                PanelCard(
-                    panel = panel,
-                    onAnalyze = { onAnalyzePanel(panel) }
+            } else if (panels.isEmpty() && !isProcessing) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text(
+                        text = "No panels detected. The image will be automatically segmented.",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else if (isProcessing) {
+                Card {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Segmenting panels...")
+                    }
+                }
+            } else {
+                Text(
+                    text = "Detected ${panels.size} panels",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
+                
+                panels.forEach { panel ->
+                    PanelCard(
+                        panel = panel,
+                        onAnalyze = { onAnalyzePanel(panel) }
+                    )
+                }
+                
+                // Add bottom padding for better scrolling experience
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -887,32 +898,10 @@ fun PanelCard(
                 }
             }
             
-            if (panel.extractedText.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Extracted Text:",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    panel.extractedText,
-                    fontSize = 14.sp
-                )
-                
-                panel.analysis?.let { analysis ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Translation:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        analysis.translation,
-                        fontSize = 14.sp
-                    )
-                }
+            // Show full analysis results when available
+            panel.analysis?.let { analysis ->
+                Spacer(modifier = Modifier.height(16.dp))
+                AnalysisResultCard(analysis = analysis)
             }
         }
     }

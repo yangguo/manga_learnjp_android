@@ -53,37 +53,52 @@ class AIService {
     // Enhanced prompts for better manga analysis
     private val mangaAnalysisPrompt = """
         You are an expert Japanese language tutor specializing in manga analysis. 
-        Analyze the provided manga panel image and extract Japanese text with detailed linguistic analysis.
+        Analyze the provided manga panel image and extract ALL Japanese text with detailed linguistic analysis.
         
-        For each text element found, provide:
-        1. Original Japanese text (exact transcription)
-        2. Hiragana reading (furigana)
-        3. English translation
-        4. Vocabulary breakdown with readings and meanings
-        5. Grammar patterns and structures
-        6. Cultural context and nuances
-        7. Difficulty level (N5-N1)
-        8. Learning notes for Japanese learners
+        IMPORTANT: Extract ALL text elements from the image including:
+        - All speech bubbles and dialogue
+        - Sound effects (onomatopoeia)
+        - Background text and signs
+        - Narration boxes
+        - Any other Japanese text visible
+        
+        Combine ALL extracted text elements into a single comprehensive analysis:
+        1. Original Japanese text (combine ALL text found, separated by line breaks or spaces as appropriate)
+        2. Complete English translation (translate ALL text found)
+        3. Vocabulary breakdown for ALL words found
+        4. Grammar patterns from ALL text
+        5. Cultural context and nuances
         
         Focus on:
         - Accurate OCR of Japanese characters (hiragana, katakana, kanji)
-        - Speech bubbles and text boxes
-        - Sound effects (onomatopoeia)
-        - Background text and signs
-        - Character emotions and context
+        - Extract EVERY piece of text, not just the first or most prominent
+        - Maintain reading order when combining text
+        - Include context for each text element
         
-        Return the analysis in JSON format matching the TextAnalysis structure.
+        Return the analysis in JSON format with this structure:
+        {
+          "originalText": "ALL Japanese text found (combined)",
+          "translation": "Complete English translation of ALL text",
+          "vocabulary": [vocabulary items from ALL text],
+          "grammarPatterns": [grammar patterns from ALL text],
+          "context": "Context and cultural notes for ALL text elements"
+        }
     """.trimIndent()
     
     private val vocabularyFocusPrompt = """
         Focus specifically on vocabulary extraction and learning from this manga panel.
-        Identify all Japanese words and provide:
-        - Kanji with furigana
+        IMPORTANT: Extract ALL Japanese text from EVERY element in the image (speech bubbles, sound effects, background text, etc.).
+        
+        For ALL Japanese words found, provide:
+        - Complete text extraction from ALL sources
+        - Kanji with furigana for ALL words
         - Word type (noun, verb, adjective, etc.)
         - JLPT level
         - Common usage examples
         - Related words and compounds
         - Memory aids and mnemonics
+        
+        Combine ALL text found into the originalText field and provide comprehensive vocabulary analysis.
     """.trimIndent()
     
     init {
@@ -211,7 +226,7 @@ class AIService {
             val prompt = when (analysisType) {
                 AnalysisType.COMPREHENSIVE -> mangaAnalysisPrompt
                 AnalysisType.VOCABULARY_FOCUS -> vocabularyFocusPrompt
-                AnalysisType.QUICK_TRANSLATION -> "Provide quick Japanese text extraction and translation from this manga panel."
+                AnalysisType.QUICK_TRANSLATION -> "Extract ALL Japanese text from EVERY element in this manga panel (speech bubbles, sound effects, background text, etc.) and provide quick translation. Combine ALL text found into a single comprehensive result."
             }
             
             // Use the enhanced analysis with custom prompt
@@ -1048,9 +1063,27 @@ class AIService {
         val lines = content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
         
         // Enhanced text extraction patterns
-        val originalText = extractField(lines, listOf("original", "japanese", "text", "原文"))
-        val translation = extractField(lines, listOf("translation", "english", "meaning", "翻訳"))
+        var originalText = extractField(lines, listOf("original", "japanese", "text", "原文"))
+        var translation = extractField(lines, listOf("translation", "english", "meaning", "翻訳"))
         val context = extractField(lines, listOf("context", "situation", "scene", "文脈"))
+        
+        // If structured extraction failed, try to extract Japanese text directly
+        if (originalText == "Not found") {
+            // Look for Japanese characters in the content
+            val japaneseTextPattern = Regex("[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+")
+            val foundJapanese = japaneseTextPattern.findAll(content)
+                .map { it.value }
+                .distinct()
+                .joinToString(" ")
+            if (foundJapanese.isNotBlank()) {
+                originalText = foundJapanese
+            }
+        }
+        
+        // If translation not found, use the content as fallback
+        if (translation == "Not found" && content.length < 500) {
+            translation = content.take(200) // Limit length for fallback
+        }
         
         // Extract vocabulary if present
         val vocabulary = extractVocabularyFromText(content)
@@ -1066,16 +1099,28 @@ class AIService {
     }
     
     private fun extractField(lines: List<String>, keywords: List<String>): String {
+        val foundTexts = mutableListOf<String>()
+        
         for (keyword in keywords) {
-            val line = lines.find { it.contains(keyword, ignoreCase = true) && it.contains(":") }
-            if (line != null) {
-                return line.substringAfter(":")
+            // Find all lines that match the keyword, not just the first one
+            val matchingLines = lines.filter { it.contains(keyword, ignoreCase = true) && it.contains(":") }
+            for (line in matchingLines) {
+                val extractedText = line.substringAfter(":")
                     .trim()
                     .removeSurrounding("\"", "\"")
                     .removeSurrounding("'", "'")
+                if (extractedText.isNotBlank() && extractedText != "Not found") {
+                    foundTexts.add(extractedText)
+                }
             }
         }
-        return "Not found"
+        
+        // If we found multiple text elements, combine them
+        return if (foundTexts.isNotEmpty()) {
+            foundTexts.joinToString(" | ") // Use separator to distinguish different text elements
+        } else {
+            "Not found"
+        }
     }
     
     private fun extractVocabularyFromText(content: String): List<VocabularyItem> {
@@ -1150,6 +1195,6 @@ class AIService {
     }
     
     companion object {
-        private const val MANGA_ANALYSIS_PROMPT = "Analyze this manga image and extract all Japanese text. For each text element found, provide: 1. The original Japanese text 2. Vocabulary breakdown with: - Individual words - Hiragana/katakana readings - English meanings - Part of speech - JLPT level if applicable 3. Grammar patterns used 4. English translation 5. Context and cultural notes. Return the response in JSON format with the following structure: { \"originalText\": \"extracted Japanese text\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"noun/verb/etc\", \"jlptLevel\": \"N1-N5\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"grammar pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"beginner/intermediate/advanced\" }], \"translation\": \"English translation\", \"context\": \"cultural context and notes\" }"
+        private const val MANGA_ANALYSIS_PROMPT = "Analyze this manga image and extract ALL Japanese text from EVERY text element. IMPORTANT: Find ALL speech bubbles, sound effects, background text, and any other Japanese text visible. Combine ALL text found into a comprehensive analysis. For ALL text elements found, provide: 1. ALL original Japanese text (combined) 2. Complete vocabulary breakdown from ALL text 3. Grammar patterns from ALL text 4. Complete English translation of ALL text 5. Context and cultural notes. Return the response in JSON format with the following structure: { \"originalText\": \"ALL Japanese text found (combined)\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"noun/verb/etc\", \"jlptLevel\": \"N1-N5\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"grammar pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"beginner/intermediate/advanced\" }], \"translation\": \"Complete English translation of ALL text\", \"context\": \"cultural context and notes for ALL text elements\" }"
     }
 }

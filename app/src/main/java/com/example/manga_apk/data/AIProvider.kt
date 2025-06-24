@@ -94,11 +94,44 @@ data class PanelSegment(
     val height: Int,
     val readingOrder: Int,
     val extractedText: String = "",
-    val analysis: TextAnalysis? = null
+    val translation: String = "",
+    val analysis: TextAnalysis? = null,
+    val panelContext: String = "",
+    val confidence: Float = 0.0f
 )
+
+data class PanelDetectionResult(
+    val panels: List<DetectedPanel>,
+    val readingOrder: List<Int>,
+    val confidence: Float,
+    val processingTime: Long = 0L
+)
+
+data class DetectedPanel(
+    val id: String,
+    val boundingBox: PanelBoundingBox,
+    val readingOrder: Int,
+    val confidence: Float,
+    val panelType: PanelType = PanelType.DIALOGUE
+)
+
+data class PanelBoundingBox(
+    val x: Int,
+    val y: Int,
+    val width: Int,
+    val height: Int
+)
+
+enum class PanelType {
+    DIALOGUE,
+    NARRATION,
+    SOUND_EFFECT,
+    BACKGROUND_TEXT
+}
 
 data class MangaAnalysisResult(
     val panels: List<PanelSegment>,
     val overallAnalysis: TextAnalysis? = null,
-    val processingTime: Long = 0L
+    val processingTime: Long = 0L,
+    val panelDetection: PanelDetectionResult? = null
 )

@@ -73,6 +73,37 @@ class AIService {
     // Reference: https://github.com/square/moshi or https://github.com/Kotlin/kotlinx.serialization
     
     // Enhanced prompts for better manga analysis
+    private val panelDetectionPrompt = """
+        You are an expert manga panel detection AI. Analyze the provided manga page image and detect all individual panels.
+        
+        **Instructions:**
+        1. **Detect All Panels:** Identify every panel in the manga page, including speech bubbles, narrative boxes, and background panels.
+        2. **Determine Reading Order:** Order panels according to traditional manga reading sequence (right-to-left, top-to-bottom).
+        3. **Classify Panel Types:** Identify whether each panel contains dialogue, narration, sound effects, or background text.
+        4. **Provide Bounding Boxes:** Give precise coordinates for each panel.
+        
+        **JSON Output Structure:**
+        Return ONLY a valid JSON object with this exact structure:
+        {
+          "panels": [
+            {
+              "id": "panel_1",
+              "boundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 100,
+                "height": 100
+              },
+              "readingOrder": 1,
+              "confidence": 0.95,
+              "panelType": "DIALOGUE"
+            }
+          ],
+          "readingOrder": [1, 2, 3],
+          "confidence": 0.9
+        }
+    """.trimIndent()
+    
     private val mangaAnalysisPrompt = """
         You are an expert Japanese language tutor specializing in manga analysis. 
         Analyze the provided manga panel image and extract ALL Japanese text, then perform a sentence-by-sentence analysis.
@@ -280,6 +311,49 @@ class AIService {
         COMPREHENSIVE,
         VOCABULARY_FOCUS,
         QUICK_TRANSLATION
+    }
+    
+    suspend fun detectPanels(
+        bitmap: Bitmap,
+        config: AIConfig
+    ): Result<com.example.manga_apk.data.PanelDetectionResult> = withContext(Dispatchers.IO) {
+        try {
+            Logger.logFunctionEntry("AIService", "detectPanels", mapOf(
+                "bitmapSize" to "${bitmap.width}x${bitmap.height}",
+                "primaryProvider" to config.primaryProvider.toString()
+            ))
+            
+            val providersToTry = config.getConfiguredProviders()
+            if (providersToTry.isEmpty()) {
+                return@withContext Result.failure(
+                    IllegalArgumentException("No API providers are configured")
+                )
+            }
+            
+            var lastException: Exception? = null
+            
+            for (provider in providersToTry) {
+                val result = when (provider) {
+                    AIProvider.OPENAI -> detectPanelsWithOpenAI(bitmap, config.openaiConfig)
+                    AIProvider.GEMINI -> detectPanelsWithGemini(bitmap, config.geminiConfig)
+                    AIProvider.CUSTOM -> detectPanelsWithCustomAPI(bitmap, config.customConfig)
+                }
+                
+                if (result.isSuccess) {
+                    return@withContext result
+                } else {
+                    lastException = result.exceptionOrNull() as? Exception
+                    if (!config.enableFallback && provider == config.primaryProvider) {
+                        return@withContext result
+                    }
+                }
+            }
+            
+            Result.failure(lastException ?: Exception("All configured providers failed"))
+        } catch (e: Exception) {
+            Logger.logError("detectPanels", e)
+            Result.failure(e)
+        }
     }
     
     private suspend fun analyzeWithOpenAI(
@@ -1321,7 +1395,425 @@ class AIService {
         return base64String
     }
     
+    /**
+     * Analyzes individual panels after detection
+     */
+    suspend fun analyzePanels(
+        bitmap: Bitmap,
+        panels: List<com.example.manga_apk.data.DetectedPanel>,
+        config: AIConfig
+    ): Result<List<com.example.manga_apk.data.PanelTextAnalysis>> {
+        val panelAnalyses = mutableListOf<com.example.manga_apk.data.PanelTextAnalysis>()
+        
+        for (panel in panels.sortedBy { it.readingOrder }) {
+            try {
+                // Extract panel region from bitmap
+                val panelBitmap = extractPanelFromBitmap(bitmap, panel.boundingBox)
+                
+                // Analyze the panel text
+                val analysisResult = analyzeImageEnhanced(panelBitmap, config, AnalysisType.COMPREHENSIVE)
+                
+                analysisResult.onSuccess { analysis ->
+                    panelAnalyses.add(
+                        com.example.manga_apk.data.PanelTextAnalysis(
+                            panelId = panel.id,
+                            extractedText = analysis.originalText ?: "",
+                            translation = analysis.translation ?: "",
+                            vocabulary = analysis.vocabulary.map { vocab ->
+                                com.example.manga_apk.data.VocabularyItem(
+                                    word = vocab.word,
+                                    reading = vocab.reading ?: "",
+                                    meaning = vocab.meaning,
+                                    partOfSpeech = vocab.partOfSpeech,
+                                    jlptLevel = vocab.jlptLevel,
+                                    difficulty = vocab.difficulty
+                                )
+                            },
+                            grammarPatterns = analysis.grammarPatterns.map { grammar ->
+                                com.example.manga_apk.data.GrammarPattern(
+                                    pattern = grammar.pattern,
+                                    explanation = grammar.explanation ?: "",
+                                    example = grammar.example ?: "",
+                                    difficulty = grammar.difficulty
+                                )
+                            },
+                            context = analysis.context ?: "",
+                            confidence = panel.confidence
+                        )
+                    )
+                }.onFailure { error ->
+                    Logger.w(Logger.Category.AI_SERVICE, "Failed to analyze panel ${panel.id}: ${error.message}")
+                    // Add empty analysis for failed panels
+                    panelAnalyses.add(
+                        com.example.manga_apk.data.PanelTextAnalysis(
+                            panelId = panel.id,
+                            extractedText = "",
+                            translation = "Analysis failed",
+                            vocabulary = emptyList(),
+                            grammarPatterns = emptyList(),
+                            context = "Failed to analyze this panel",
+                            confidence = 0.0f
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Error processing panel ${panel.id}: ${e.message}")
+            }
+        }
+        
+        return Result.success(panelAnalyses)
+    }
+    
+    /**
+     * Extracts a panel region from the full manga page bitmap
+     */
+    private fun extractPanelFromBitmap(
+        originalBitmap: Bitmap,
+        boundingBox: com.example.manga_apk.data.PanelBoundingBox
+    ): Bitmap {
+        val imageWidth = originalBitmap.width
+        val imageHeight = originalBitmap.height
+        
+        // Convert percentage coordinates to pixel coordinates
+        val x = (boundingBox.x * imageWidth / 100).coerceAtLeast(0)
+        val y = (boundingBox.y * imageHeight / 100).coerceAtLeast(0)
+        val width = (boundingBox.width * imageWidth / 100).coerceAtMost(imageWidth - x)
+        val height = (boundingBox.height * imageHeight / 100).coerceAtMost(imageHeight - y)
+        
+        return try {
+            Bitmap.createBitmap(originalBitmap, x, y, width, height)
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Failed to extract panel bitmap: ${e.message}")
+            // Return a small portion of the original bitmap as fallback
+            Bitmap.createBitmap(originalBitmap, 0, 0, 
+                minOf(100, imageWidth), minOf(100, imageHeight))
+        }
+    }
+    
+    /**
+     * Complete manga page analysis with panel detection and individual panel analysis
+     */
+    suspend fun analyzeMangaPage(
+        bitmap: Bitmap,
+        config: AIConfig
+    ): Result<com.example.manga_apk.data.MangaPageAnalysis> {
+        val startTime = System.currentTimeMillis()
+        
+        return try {
+            // First, detect panels
+            val panelDetectionResult = detectPanels(bitmap, config)
+            
+            panelDetectionResult.fold(
+                onSuccess = { panelDetection ->
+                    // Then analyze each panel
+                    val panelAnalysesResult = analyzePanels(bitmap, panelDetection.panels, config)
+                    
+                    panelAnalysesResult.fold(
+                        onSuccess = { panelAnalyses ->
+                            val processingTime = System.currentTimeMillis() - startTime
+                            
+                            Result.success(
+                                com.example.manga_apk.data.MangaPageAnalysis(
+                                    panelDetection = panelDetection,
+                                    panelAnalyses = panelAnalyses,
+                                    overallContext = "Manga page analyzed with ${panelDetection.panels.size} panels detected",
+                                    processingTime = processingTime
+                                )
+                            )
+                        },
+                        onFailure = { error ->
+                            Result.failure(Exception("Failed to analyze panels: ${error.message}"))
+                        }
+                    )
+                },
+                onFailure = { error ->
+                    Result.failure(Exception("Failed to detect panels: ${error.message}"))
+                }
+            )
+        } catch (e: Exception) {
+            Result.failure(Exception("Failed to analyze manga page: ${e.message}"))
+        }
+    }
+    
+    // Panel Detection Implementation Methods
+    private suspend fun detectPanelsWithOpenAI(
+        bitmap: Bitmap,
+        config: OpenAIConfig
+    ): Result<com.example.manga_apk.data.PanelDetectionResult> {
+        if (config.apiKey.isEmpty()) {
+            return Result.failure(IllegalArgumentException("OpenAI API key is not configured"))
+        }
+        
+        val base64Image = bitmapToBase64(bitmap)
+        val requestBody = JsonObject().apply {
+            addProperty("model", config.visionModel)
+            add("messages", gson.toJsonTree(listOf(
+                mapOf(
+                    "role" to "user",
+                    "content" to listOf(
+                        mapOf("type" to "text", "text" to PANEL_DETECTION_PROMPT),
+                        mapOf(
+                            "type" to "image_url",
+                            "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
+                        )
+                    )
+                )
+            )))
+            addProperty("max_tokens", 2000)
+            addProperty("temperature", 0.1)
+        }
+        
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        return try {
+            val response = extendedTimeoutClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                parsePanelDetectionResponse(responseBody)
+            } else {
+                val errorBody = response.body?.string()
+                Result.failure(Exception("OpenAI API error: ${response.code} - $errorBody"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun detectPanelsWithGemini(
+        bitmap: Bitmap,
+        config: GeminiConfig
+    ): Result<com.example.manga_apk.data.PanelDetectionResult> {
+        if (config.apiKey.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Gemini API key is not configured"))
+        }
+        
+        val base64Image = bitmapToBase64(bitmap)
+        val requestBody = JsonObject().apply {
+            add("contents", gson.toJsonTree(listOf(
+                mapOf(
+                    "parts" to listOf(
+                        mapOf("text" to PANEL_DETECTION_PROMPT),
+                        mapOf(
+                            "inline_data" to mapOf(
+                                "mime_type" to "image/jpeg",
+                                "data" to base64Image
+                            )
+                        )
+                    )
+                )
+            )))
+            add("generationConfig", gson.toJsonTree(mapOf(
+                "temperature" to 0.1,
+                "maxOutputTokens" to 2000
+            )))
+        }
+        
+        val request = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        return try {
+            val response = extendedTimeoutClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                parseGeminiPanelDetectionResponse(responseBody)
+            } else {
+                val errorBody = response.body?.string()
+                Result.failure(Exception("Gemini API error: ${response.code} - $errorBody"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun detectPanelsWithCustomAPI(
+        bitmap: Bitmap,
+        config: CustomAPIConfig
+    ): Result<com.example.manga_apk.data.PanelDetectionResult> {
+        if (config.endpoint.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Custom API endpoint is not configured"))
+        }
+        
+        val base64Image = bitmapToBase64(bitmap)
+        val requestBody = JsonObject().apply {
+            addProperty("model", config.model)
+            add("messages", gson.toJsonTree(listOf(
+                mapOf(
+                    "role" to "user",
+                    "content" to listOf(
+                        mapOf("type" to "text", "text" to PANEL_DETECTION_PROMPT),
+                        mapOf(
+                            "type" to "image_url",
+                            "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
+                        )
+                    )
+                )
+            )))
+            addProperty("max_tokens", 2000)
+            addProperty("temperature", 0.1)
+        }
+        
+        val requestBuilder = Request.Builder()
+            .url("${config.endpoint.trimEnd('/')}/chat/completions")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+        
+        if (config.apiKey.isNotEmpty()) {
+            requestBuilder.addHeader("Authorization", "Bearer ${config.apiKey}")
+        }
+        
+        return try {
+            val response = extendedTimeoutClient.newCall(requestBuilder.build()).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                parsePanelDetectionResponse(responseBody)
+            } else {
+                val errorBody = response.body?.string()
+                Result.failure(Exception("Custom API error: ${response.code} - $errorBody"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    private fun parsePanelDetectionResponse(responseBody: String?): Result<com.example.manga_apk.data.PanelDetectionResult> {
+        return try {
+            if (responseBody.isNullOrEmpty()) {
+                return Result.failure(Exception("Empty response body"))
+            }
+            
+            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            val content = jsonResponse.getAsJsonArray("choices")
+                ?.get(0)?.asJsonObject
+                ?.getAsJsonObject("message")
+                ?.get("content")?.asString
+            
+            if (content.isNullOrEmpty()) {
+                return Result.failure(Exception("No content in response"))
+            }
+            
+            // Parse the panel detection JSON
+            val panelJson = gson.fromJson(content, JsonObject::class.java)
+            val panelsArray = panelJson.getAsJsonArray("panels")
+            val readingOrderArray = panelJson.getAsJsonArray("readingOrder")
+            val confidence = panelJson.get("confidence")?.asFloat ?: 0.8f
+            
+            val detectedPanels = mutableListOf<com.example.manga_apk.data.DetectedPanel>()
+            
+            panelsArray?.forEach { panelElement ->
+                val panel = panelElement.asJsonObject
+                val boundingBox = panel.getAsJsonObject("boundingBox")
+                
+                detectedPanels.add(
+                    com.example.manga_apk.data.DetectedPanel(
+                        id = panel.get("id")?.asString ?: "panel_${detectedPanels.size + 1}",
+                        boundingBox = com.example.manga_apk.data.PanelBoundingBox(
+                            x = boundingBox.get("x")?.asInt ?: 0,
+                            y = boundingBox.get("y")?.asInt ?: 0,
+                            width = boundingBox.get("width")?.asInt ?: 100,
+                            height = boundingBox.get("height")?.asInt ?: 100
+                        ),
+                        readingOrder = panel.get("readingOrder")?.asInt ?: detectedPanels.size + 1,
+                        confidence = panel.get("confidence")?.asFloat ?: 0.8f,
+                        panelType = com.example.manga_apk.data.PanelType.valueOf(
+                            panel.get("panelType")?.asString ?: "DIALOGUE"
+                        )
+                    )
+                )
+            }
+            
+            val readingOrder = mutableListOf<Int>()
+            readingOrderArray?.forEach { element ->
+                readingOrder.add(element.asInt)
+            }
+            
+            Result.success(
+                com.example.manga_apk.data.PanelDetectionResult(
+                    panels = detectedPanels,
+                    readingOrder = readingOrder,
+                    confidence = confidence
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(Exception("Failed to parse panel detection response: ${e.message}"))
+        }
+    }
+    
+    private fun parseGeminiPanelDetectionResponse(responseBody: String?): Result<com.example.manga_apk.data.PanelDetectionResult> {
+        return try {
+            if (responseBody.isNullOrEmpty()) {
+                return Result.failure(Exception("Empty response body"))
+            }
+            
+            val jsonResponse = gson.fromJson(responseBody, JsonObject::class.java)
+            val content = jsonResponse.getAsJsonArray("candidates")
+                ?.get(0)?.asJsonObject
+                ?.getAsJsonObject("content")
+                ?.getAsJsonArray("parts")
+                ?.get(0)?.asJsonObject
+                ?.get("text")?.asString
+            
+            if (content.isNullOrEmpty()) {
+                return Result.failure(Exception("No content in Gemini response"))
+            }
+            
+            // Parse the panel detection JSON from Gemini response
+            val panelJson = gson.fromJson(content, JsonObject::class.java)
+            val panelsArray = panelJson.getAsJsonArray("panels")
+            val readingOrderArray = panelJson.getAsJsonArray("readingOrder")
+            val confidence = panelJson.get("confidence")?.asFloat ?: 0.8f
+            
+            val detectedPanels = mutableListOf<com.example.manga_apk.data.DetectedPanel>()
+            
+            panelsArray?.forEach { panelElement ->
+                val panel = panelElement.asJsonObject
+                val boundingBox = panel.getAsJsonObject("boundingBox")
+                
+                detectedPanels.add(
+                    com.example.manga_apk.data.DetectedPanel(
+                        id = panel.get("id")?.asString ?: "panel_${detectedPanels.size + 1}",
+                        boundingBox = com.example.manga_apk.data.PanelBoundingBox(
+                            x = boundingBox.get("x")?.asInt ?: 0,
+                            y = boundingBox.get("y")?.asInt ?: 0,
+                            width = boundingBox.get("width")?.asInt ?: 100,
+                            height = boundingBox.get("height")?.asInt ?: 100
+                        ),
+                        readingOrder = panel.get("readingOrder")?.asInt ?: detectedPanels.size + 1,
+                        confidence = panel.get("confidence")?.asFloat ?: 0.8f,
+                        panelType = com.example.manga_apk.data.PanelType.valueOf(
+                            panel.get("panelType")?.asString ?: "DIALOGUE"
+                        )
+                    )
+                )
+            }
+            
+            val readingOrder = mutableListOf<Int>()
+            readingOrderArray?.forEach { element ->
+                readingOrder.add(element.asInt)
+            }
+            
+            Result.success(
+                com.example.manga_apk.data.PanelDetectionResult(
+                    panels = detectedPanels,
+                    readingOrder = readingOrder,
+                    confidence = confidence
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(Exception("Failed to parse Gemini panel detection response: ${e.message}"))
+        }
+    }
+    
     companion object {
         private const val MANGA_ANALYSIS_PROMPT = "Analyze this manga image and extract ALL Japanese text from EVERY text element. IMPORTANT: Find ALL speech bubbles, sound effects, background text, and any other Japanese text visible. Combine ALL text found into a comprehensive analysis. For ALL text elements found, provide: 1. ALL original Japanese text (combined) 2. Complete vocabulary breakdown from ALL text 3. Grammar patterns from ALL text 4. Complete English translation of ALL text 5. Context and cultural notes. Return the response in JSON format with the following structure: { \"originalText\": \"ALL Japanese text found (combined)\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"noun/verb/etc\", \"jlptLevel\": \"N1-N5\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"grammar pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"beginner/intermediate/advanced\" }], \"translation\": \"Complete English translation of ALL text\", \"context\": \"cultural context and notes for ALL text elements\" }"
+        
+        private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
     }
 }

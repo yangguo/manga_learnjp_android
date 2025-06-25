@@ -56,6 +56,13 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         _uiState.value = _uiState.value.copy(error = null)
     }
     
+    fun updateAIConfig(config: AIConfig) {
+        println("InteractiveReadingViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
+        android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
+        
+        _uiState.value = _uiState.value.copy(aiConfig = config)
+    }
+    
     fun analyzeImageForInteractiveReading(bitmap: Bitmap) {
         viewModelScope.launch {
             try {
@@ -67,6 +74,10 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 Logger.logFunctionEntry("InteractiveReadingViewModel", "analyzeImageForInteractiveReading")
                 
                 val currentConfig = _uiState.value.aiConfig
+                
+                // Debug logging for config values
+                println("InteractiveReadingViewModel: Current config - OpenAI key length: ${currentConfig.openaiConfig.apiKey.trim().length}, Gemini key length: ${currentConfig.geminiConfig.apiKey.trim().length}, Primary provider: ${currentConfig.primaryProvider}")
+                android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: Current config - OpenAI key length: ${currentConfig.openaiConfig.apiKey.trim().length}, Gemini key length: ${currentConfig.geminiConfig.apiKey.trim().length}, Primary provider: ${currentConfig.primaryProvider}")
                 
                 // Validate API configuration before making the call
                 val validationError = validateApiConfiguration(currentConfig)
@@ -193,7 +204,13 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         val hasGemini = config.geminiConfig.apiKey.trim().isNotEmpty()
         val hasCustom = config.customConfig.apiKey.trim().isNotEmpty() && config.customConfig.endpoint.trim().isNotEmpty()
         
+        // Debug logging for validation
+        println("InteractiveReadingViewModel.validateApiConfiguration: hasOpenAI=$hasOpenAI, hasGemini=$hasGemini, hasCustom=$hasCustom")
+        android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel.validateApiConfiguration: hasOpenAI=$hasOpenAI, hasGemini=$hasGemini, hasCustom=$hasCustom")
+        
         if (!hasOpenAI && !hasGemini && !hasCustom) {
+            println("InteractiveReadingViewModel.validateApiConfiguration: No providers configured!")
+            android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel.validateApiConfiguration: No providers configured!")
             return "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
                     "• OpenAI API key for GPT-4 Vision\n" +
                     "• Google Gemini API key\n" +

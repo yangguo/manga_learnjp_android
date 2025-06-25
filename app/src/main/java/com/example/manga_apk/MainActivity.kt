@@ -68,6 +68,7 @@ fun MangaApp() {
             val uiState by sharedViewModel.uiState.collectAsState()
             InteractiveReadingScreen(
                 selectedImage = uiState.selectedImage,
+                aiConfig = uiState.aiConfig,
                 onShowSettings = {
                     navController.navigate("ai_settings")
                 },

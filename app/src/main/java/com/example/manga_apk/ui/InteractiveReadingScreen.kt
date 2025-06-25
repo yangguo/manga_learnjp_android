@@ -52,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 @Composable
 fun InteractiveReadingScreen(
     selectedImage: android.graphics.Bitmap?,
+    aiConfig: com.example.manga_apk.data.AIConfig,
     onShowSettings: () -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -62,9 +63,10 @@ fun InteractiveReadingScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
     
-    // Set the image in the ViewModel when it changes
-    LaunchedEffect(selectedImage) {
+    // Set the image and AI config in the ViewModel when they change
+    LaunchedEffect(selectedImage, aiConfig) {
         viewModel.setImage(selectedImage)
+        viewModel.updateAIConfig(aiConfig)
     }
     
     var selectedSentence by remember { mutableStateOf<IdentifiedSentence?>(null) }

@@ -10,9 +10,6 @@ import com.example.manga_apk.utils.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 data class InteractiveReadingUiState(
@@ -25,19 +22,9 @@ data class InteractiveReadingUiState(
 
 class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
     
-    private val preferencesRepository = PreferencesRepository(context)
     private val _uiState = MutableStateFlow(InteractiveReadingUiState())
     
-    val uiState: StateFlow<InteractiveReadingUiState> = combine(
-        _uiState,
-        preferencesRepository.aiConfigFlow
-    ) { state, aiConfig ->
-        state.copy(aiConfig = aiConfig)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = InteractiveReadingUiState()
-    )
+    val uiState: StateFlow<InteractiveReadingUiState> = _uiState.asStateFlow()
     
     private val aiService = AIService()
     

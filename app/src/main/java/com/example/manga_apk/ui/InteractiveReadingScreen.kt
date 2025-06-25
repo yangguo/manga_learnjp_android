@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
@@ -63,10 +64,11 @@ fun InteractiveReadingScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
     
-    // Set the image and AI config in the ViewModel when they change
+    // Set the AI config and image in the ViewModel when they change
     LaunchedEffect(selectedImage, aiConfig) {
-        viewModel.setImage(selectedImage)
+        // Set AI config first, then the image
         viewModel.updateAIConfig(aiConfig)
+        viewModel.setImage(selectedImage)
     }
     
     var selectedSentence by remember { mutableStateOf<IdentifiedSentence?>(null) }
@@ -173,6 +175,48 @@ fun InteractiveReadingScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     style = MaterialTheme.typography.bodySmall
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onShowSettings,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Settings", fontSize = 12.sp)
+                    }
+                    
+                    if (selectedImage != null) {
+                        Button(
+                            onClick = viewModel::retryAnalysis,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.onErrorContainer,
+                                contentColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Retry", fontSize = 12.sp)
+                        }
+                    }
+                }
             }
         }
     }

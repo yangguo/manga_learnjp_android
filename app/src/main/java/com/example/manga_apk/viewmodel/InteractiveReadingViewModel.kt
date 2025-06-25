@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.example.manga_apk.data.PreferencesRepository
+import kotlinx.coroutines.flow.first
 
 data class InteractiveReadingUiState(
     val selectedImage: Bitmap? = null,
@@ -27,6 +29,22 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
     val uiState: StateFlow<InteractiveReadingUiState> = _uiState.asStateFlow()
     
     private val aiService = AIService()
+    private val preferencesRepository = PreferencesRepository(context)
+    
+    init {
+        // Load AI configuration on initialization
+        viewModelScope.launch {
+            try {
+                val savedConfig = preferencesRepository.aiConfigFlow.first()
+                println("InteractiveReadingViewModel: Loaded saved AI config - OpenAI: ${savedConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${savedConfig.geminiConfig.apiKey.trim().length} chars")
+                android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: Loaded saved AI config - OpenAI: ${savedConfig.openaiConfig.apiKey.trim().length} chars")
+                _uiState.value = _uiState.value.copy(aiConfig = savedConfig)
+            } catch (e: Exception) {
+                println("InteractiveReadingViewModel: Error loading saved AI config: ${e.message}")
+                android.util.Log.e("MangaLearnJP", "InteractiveReadingViewModel: Error loading saved AI config", e)
+            }
+        }
+    }
     
     fun setImage(bitmap: Bitmap?) {
         _uiState.value = _uiState.value.copy(
@@ -35,8 +53,8 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
             error = null
         )
         
-        // Automatically analyze the image when set
-        bitmap?.let { analyzeImageForInteractiveReading(it) }
+        // Trigger analysis if both image and AI config are ready
+        triggerAnalysisIfReady()
     }
     
     fun clearError() {
@@ -48,6 +66,32 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: updateAIConfig called - OpenAI key length: ${config.openaiConfig.apiKey.length}, Gemini key length: ${config.geminiConfig.apiKey.length}")
         
         _uiState.value = _uiState.value.copy(aiConfig = config)
+        
+        // Trigger analysis if we have both image and AI config ready
+        triggerAnalysisIfReady()
+    }
+    
+    private fun triggerAnalysisIfReady() {
+        val currentState = _uiState.value
+        val hasImage = currentState.selectedImage != null
+        val configuredProviders = currentState.aiConfig.getConfiguredProviders()
+        val hasConfig = configuredProviders.isNotEmpty()
+        
+        println("InteractiveReadingViewModel: triggerAnalysisIfReady() - hasImage=$hasImage, hasConfig=$hasConfig, providers=$configuredProviders")
+        android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: triggerAnalysisIfReady() - hasImage=$hasImage, hasConfig=$hasConfig, providers=$configuredProviders")
+        
+        if (hasImage && hasConfig) {
+            println("InteractiveReadingViewModel: Both image and AI config ready, triggering analysis")
+            android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: Both image and AI config ready, triggering analysis")
+            analyzeImageForInteractiveReading(currentState.selectedImage!!)
+        } else {
+            val missingRequirements = mutableListOf<String>()
+            if (!hasImage) missingRequirements.add("image")
+            if (!hasConfig) missingRequirements.add("AI config")
+            
+            println("InteractiveReadingViewModel: Waiting for: ${missingRequirements.joinToString(", ")}")
+            android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: Waiting for: ${missingRequirements.joinToString(", ")}")
+        }
     }
     
     fun analyzeImageForInteractiveReading(bitmap: Bitmap) {
@@ -69,6 +113,8 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 // Validate API configuration before making the call
                 val validationError = validateApiConfiguration(currentConfig)
                 if (validationError != null) {
+                    println("InteractiveReadingViewModel: API validation failed: $validationError")
+                    android.util.Log.e("MangaLearnJP", "InteractiveReadingViewModel: API validation failed: $validationError")
                     _uiState.value = _uiState.value.copy(
                         isAnalyzing = false,
                         error = validationError
@@ -180,8 +226,29 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
     }
     
     fun retryAnalysis() {
-        _uiState.value.selectedImage?.let { bitmap ->
-            analyzeImageForInteractiveReading(bitmap)
+        viewModelScope.launch {
+            try {
+                // Refresh AI config from storage first
+                val latestConfig = preferencesRepository.aiConfigFlow.first()
+                println("InteractiveReadingViewModel: retryAnalysis() - Refreshed AI config from storage")
+                println("InteractiveReadingViewModel: retryAnalysis() - OpenAI: ${latestConfig.openaiConfig.apiKey.trim().length} chars, Gemini: ${latestConfig.geminiConfig.apiKey.trim().length} chars")
+                android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: retryAnalysis() - Refreshed AI config - OpenAI: ${latestConfig.openaiConfig.apiKey.trim().length} chars")
+                
+                _uiState.value = _uiState.value.copy(aiConfig = latestConfig, error = null)
+                
+                // Trigger analysis with refreshed config
+                _uiState.value.selectedImage?.let { bitmap ->
+                    analyzeImageForInteractiveReading(bitmap)
+                }
+            } catch (e: Exception) {
+                println("InteractiveReadingViewModel: Error refreshing config during retry: ${e.message}")
+                android.util.Log.e("MangaLearnJP", "InteractiveReadingViewModel: Error refreshing config during retry", e)
+                
+                // Fallback to existing retry logic
+                _uiState.value.selectedImage?.let { bitmap ->
+                    analyzeImageForInteractiveReading(bitmap)
+                }
+            }
         }
     }
     
@@ -193,15 +260,27 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         
         // Debug logging for validation
         println("InteractiveReadingViewModel.validateApiConfiguration: hasOpenAI=$hasOpenAI, hasGemini=$hasGemini, hasCustom=$hasCustom")
-        android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel.validateApiConfiguration: hasOpenAI=$hasOpenAI, hasGemini=$hasGemini, hasCustom=$hasCustom")
+        println("InteractiveReadingViewModel.validateApiConfiguration: Primary provider=${config.primaryProvider}")
+        println("InteractiveReadingViewModel.validateApiConfiguration: OpenAI key length=${config.openaiConfig.apiKey.trim().length}")
+        println("InteractiveReadingViewModel.validateApiConfiguration: Gemini key length=${config.geminiConfig.apiKey.trim().length}")
+        android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel.validateApiConfiguration: hasOpenAI=$hasOpenAI, hasGemini=$hasGemini, hasCustom=$hasCustom, primary=${config.primaryProvider}")
         
         if (!hasOpenAI && !hasGemini && !hasCustom) {
             println("InteractiveReadingViewModel.validateApiConfiguration: No providers configured!")
-            android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel.validateApiConfiguration: No providers configured!")
-            return "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
-                    "• OpenAI API key for GPT-4 Vision\n" +
-                    "• Google Gemini API key\n" +
-                    "• Custom API endpoint and key"
+            android.util.Log.e("MangaLearnJP", "InteractiveReadingViewModel.validateApiConfiguration: No providers configured!")
+            
+            return buildString {
+                append("❌ No AI providers configured. Please set up at least one API key in Settings:")
+                append("\n• OpenAI API key for GPT-4 Vision")
+                append("\n• Google Gemini API key")
+                append("\n• Custom API endpoint and key")
+                append("\n\n🔍 Debug Info:")
+                append("\n• Primary Provider: ${config.primaryProvider}")
+                append("\n• OpenAI Key Length: ${config.openaiConfig.apiKey.length} chars")
+                append("\n• Gemini Key Length: ${config.geminiConfig.apiKey.length} chars")
+                append("\n• Custom Key Length: ${config.customConfig.apiKey.length} chars")
+                append("\n• Custom Endpoint: ${if (config.customConfig.endpoint.isEmpty()) "Not set" else "Set"}")
+            }
         }
         
         // Validate primary provider
@@ -235,5 +314,37 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         }
         
         return null // All validations passed
+    }
+    
+    fun getDebugStatus(): String {
+        val config = _uiState.value.aiConfig
+        return buildString {
+            append("🔍 Interactive Reading Mode Debug Status:\n\n")
+            append("📋 Configuration Status:\n")
+            append("• Primary Provider: ${config.primaryProvider}\n")
+            append("• Fallback Enabled: ${config.enableFallback}\n")
+            append("• Configured Providers: ${config.getConfiguredProviders()}\n\n")
+            
+            append("🔑 API Keys Status:\n")
+            append("• OpenAI Key: ${if (config.openaiConfig.apiKey.trim().isEmpty()) "❌ Missing" else "✅ Present (${config.openaiConfig.apiKey.trim().length} chars)"}\n")
+            append("• Gemini Key: ${if (config.geminiConfig.apiKey.trim().isEmpty()) "❌ Missing" else "✅ Present (${config.geminiConfig.apiKey.trim().length} chars)"}\n")
+            append("• Custom Key: ${if (config.customConfig.apiKey.trim().isEmpty()) "❌ Missing" else "✅ Present (${config.customConfig.apiKey.trim().length} chars)"}\n")
+            append("• Custom Endpoint: ${if (config.customConfig.endpoint.trim().isEmpty()) "❌ Missing" else "✅ Set"}\n\n")
+            
+            append("🖼️ Current State:\n")
+            append("• Image Loaded: ${if (_uiState.value.selectedImage != null) "✅ Yes" else "❌ No"}\n")
+            append("• Currently Analyzing: ${if (_uiState.value.isAnalyzing) "⏳ Yes" else "❌ No"}\n")
+            append("• Error Present: ${if (_uiState.value.error != null) "❌ Yes" else "✅ No"}\n")
+            append("• Sentences Found: ${_uiState.value.identifiedSentences.size}\n\n")
+            
+            append("💡 Suggested Actions:\n")
+            if (config.getConfiguredProviders().isEmpty()) {
+                append("1. ⚙️ Go to Settings and configure at least one AI provider\n")
+                append("2. 🔄 Retry analysis after configuring\n")
+            } else {
+                append("1. ✅ Configuration looks good\n")
+                append("2. 🔄 Try retrying the analysis\n")
+            }
+        }
     }
 }

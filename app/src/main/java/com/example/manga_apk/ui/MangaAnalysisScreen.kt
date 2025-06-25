@@ -111,8 +111,7 @@ fun MangaAnalysisScreen(
                     isProcessing = uiState.isProcessing,
                     onAnalyze = viewModel::analyzeWithFallback,
                     onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
-                    onRunDemo = viewModel::runDemoAnalysis,
-                    onNavigateToSettings = onNavigateToSettings
+                    onRunDemo = viewModel::runDemoAnalysis
                 )
             }
             AnalysisMode.SIMPLE_ANALYSIS -> {
@@ -715,8 +714,7 @@ fun PanelAnalysisSection(
     isProcessing: Boolean,
     onAnalyze: () -> Unit,
     onBackToUpload: () -> Unit,
-    onRunDemo: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onRunDemo: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -724,26 +722,12 @@ fun PanelAnalysisSection(
             .padding(16.dp)
     ) {
         // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Panel Analysis",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            IconButton(onClick = onNavigateToSettings) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
+        Text(
+            "Panel Analysis",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
         
         Spacer(modifier = Modifier.height(16.dp))
         

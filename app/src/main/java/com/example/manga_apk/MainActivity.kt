@@ -40,16 +40,18 @@ fun MangaApp() {
     val navController = rememberNavController()
     val context = LocalContext.current
     
+    // Create a single shared ViewModel instance
+    val sharedViewModel: MangaAnalysisViewModel = viewModel(
+        factory = MangaAnalysisViewModelFactory(context)
+    )
+    
     NavHost(
         navController = navController,
         startDestination = "manga_analysis"
     ) {
         composable("manga_analysis") {
-            val viewModel: MangaAnalysisViewModel = viewModel(
-                factory = MangaAnalysisViewModelFactory(context)
-            )
             MangaAnalysisScreen(
-                viewModel = viewModel,
+                viewModel = sharedViewModel,
                 onNavigateToInteractiveReading = {
                     navController.navigate("interactive_reading")
                 },
@@ -63,14 +65,11 @@ fun MangaApp() {
         }
         
         composable("interactive_reading") {
-            val mangaViewModel: MangaAnalysisViewModel = viewModel(
-                factory = MangaAnalysisViewModelFactory(context)
-            )
-            val uiState by mangaViewModel.uiState.collectAsState()
+            val uiState by sharedViewModel.uiState.collectAsState()
             InteractiveReadingScreen(
                 selectedImage = uiState.selectedImage,
                 onAnalyzeWord = { word ->
-                    mangaViewModel.analyzeWord(word)
+                    sharedViewModel.analyzeWord(word)
                 },
                 onShowSettings = {
                     navController.navigate("ai_settings")
@@ -82,21 +81,18 @@ fun MangaApp() {
         }
         
         composable("ai_settings") {
-            val mangaViewModel: MangaAnalysisViewModel = viewModel(
-                factory = MangaAnalysisViewModelFactory(context)
-            )
-            val uiState by mangaViewModel.uiState.collectAsState()
+            val uiState by sharedViewModel.uiState.collectAsState()
             AISettingsScreen(
                 aiConfig = uiState.aiConfig,
                 onConfigUpdate = { config ->
-                    mangaViewModel.updateAIConfig(config)
+                    sharedViewModel.updateAIConfig(config)
                 },
                 onNavigateBack = {
                     navController.popBackStack()
                 },
 
                 onClearPreferences = {
-                    mangaViewModel.clearAllPreferences()
+                    sharedViewModel.clearAllPreferences()
                 },
                 settingsSaved = uiState.settingsSaved
             )

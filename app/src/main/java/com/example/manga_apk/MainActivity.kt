@@ -68,9 +68,6 @@ fun MangaApp() {
             val uiState by sharedViewModel.uiState.collectAsState()
             InteractiveReadingScreen(
                 selectedImage = uiState.selectedImage,
-                onAnalyzeWord = { word ->
-                    sharedViewModel.analyzeWord(word)
-                },
                 onShowSettings = {
                     navController.navigate("ai_settings")
                 },

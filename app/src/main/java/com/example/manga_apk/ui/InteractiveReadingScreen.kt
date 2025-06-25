@@ -44,17 +44,29 @@ import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.example.manga_apk.data.*
 import kotlin.math.roundToInt
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InteractiveReadingScreen(
     selectedImage: android.graphics.Bitmap?,
-    onAnalyzeWord: (String) -> Unit,
     onShowSettings: () -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Word analysis removed - focusing on sentence-level analysis
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val viewModel: com.example.manga_apk.viewmodel.InteractiveReadingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.example.manga_apk.viewmodel.InteractiveReadingViewModelFactory(context)
+    )
+    val uiState by viewModel.uiState.collectAsState()
+    
+    // Set the image in the ViewModel when it changes
+    LaunchedEffect(selectedImage) {
+        viewModel.setImage(selectedImage)
+    }
+    
     var selectedSentence by remember { mutableStateOf<IdentifiedSentence?>(null) }
     var showSentenceDialog by remember { mutableStateOf(false) }
     
@@ -80,10 +92,13 @@ fun InteractiveReadingScreen(
             selectedImage?.let { image ->
                 EnhancedInteractiveView(
                     image = image,
+                    identifiedSentences = uiState.identifiedSentences,
+                    isAnalyzing = uiState.isAnalyzing,
                     onSentenceTap = { sentence ->
                         selectedSentence = sentence
                         showSentenceDialog = true
                     },
+                    onRetryAnalysis = { viewModel.retryAnalysis() },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
@@ -119,6 +134,47 @@ fun InteractiveReadingScreen(
     
     // Note: Word analysis functionality removed - focusing on sentence-level analysis
     
+    // Error handling
+    uiState.error?.let { error ->
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = "Analysis Error:",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = viewModel::clearError) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Dismiss error",
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+                Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+    
     // Sentence Analysis Dialog
     if (showSentenceDialog && selectedSentence != null) {
         SentenceAnalysisDialog(
@@ -133,16 +189,14 @@ fun InteractiveReadingScreen(
 @Composable
 fun EnhancedInteractiveView(
     image: android.graphics.Bitmap,
+    identifiedSentences: List<IdentifiedSentence>,
+    isAnalyzing: Boolean,
     onSentenceTap: (IdentifiedSentence) -> Unit,
+    onRetryAnalysis: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var imageSize by remember { mutableStateOf(Pair(0, 0)) }
     val density = LocalDensity.current
-    
-    // Generate identified sentences from direct image analysis
-    val identifiedSentences = remember(image) {
-        generateSentencesFromImage(image)
-    }
     
     Box(
         modifier = modifier
@@ -197,7 +251,7 @@ fun EnhancedInteractiveView(
             }
         }
         
-        // Bottom panel showing identified sentences count
+        // Bottom panel showing analysis status and identified sentences count
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -206,12 +260,42 @@ fun EnhancedInteractiveView(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             )
         ) {
-            Text(
-                text = "Identified Sentences (${identifiedSentences.size})",
+            Column(
                 modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (isAnalyzing) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            text = "Analyzing with LLM...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Identified Sentences (${identifiedSentences.size})",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (identifiedSentences.isEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = onRetryAnalysis,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Retry Analysis")
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -399,17 +483,18 @@ fun SentenceAnalysisDialog(
 }
 
 // Function to generate identified sentences directly from image using LLM analysis
+// Note: This is now a placeholder that returns demo data.
+// The actual LLM analysis should be performed in the ViewModel/Repository layer
+// and passed to this screen as a parameter for better separation of concerns.
 fun generateSentencesFromImage(image: android.graphics.Bitmap?): List<IdentifiedSentence> {
     if (image == null) return emptyList()
     
-    // TODO: Implement direct LLM analysis of the image
-    // This should:
-    // 1. Send the image to LLM for text detection and location identification
-    // 2. Parse Japanese sentences with their bounding boxes
-    // 3. Analyze each sentence for vocabulary and grammar
-    // 4. Return IdentifiedSentence objects with accurate positions
+    // Return demo sentences for now
+    // In a proper implementation, this data should come from:
+    // 1. ViewModel calling AIService.analyzeImage() with interactive reading prompt
+    // 2. Parsing the LLM response to extract sentences with positions
+    // 3. Converting to IdentifiedSentence objects
     
-    // For now, return sample sentences that would come from LLM analysis
     return listOf(
         IdentifiedSentence(
             id = 1,

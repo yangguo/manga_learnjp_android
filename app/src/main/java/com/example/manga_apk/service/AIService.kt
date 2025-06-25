@@ -1811,9 +1811,39 @@ class AIService {
         }
     }
     
+    /**
+     * Specialized analysis for interactive reading mode
+     * Focuses on sentence-level analysis with position detection
+     */
+    suspend fun analyzeImageForInteractiveReading(
+        bitmap: Bitmap,
+        config: AIConfig
+    ): TextAnalysis {
+        Logger.logFunctionEntry("AIService", "analyzeImageForInteractiveReading")
+        
+        try {
+            // Use the existing analyzeImage method - it will use the default MANGA_ANALYSIS_PROMPT
+            // TODO: In the future, we could modify the analyze functions to accept custom prompts
+            val result = when (config.primaryProvider) {
+                AIProvider.OPENAI -> analyzeWithOpenAI(bitmap, config.openaiConfig)
+                AIProvider.GEMINI -> analyzeWithGemini(bitmap, config.geminiConfig)
+                AIProvider.CUSTOM -> analyzeWithCustomAPI(bitmap, config.customConfig)
+            }
+            
+            Logger.logFunctionExit("AIService", "analyzeImageForInteractiveReading")
+            return result.getOrThrow()
+            
+        } catch (e: Exception) {
+            Logger.logError("analyzeImageForInteractiveReading", e)
+            throw e
+        }
+    }
+    
     companion object {
         private const val MANGA_ANALYSIS_PROMPT = "Analyze this manga image and extract ALL Japanese text from EVERY text element. IMPORTANT: Find ALL speech bubbles, sound effects, background text, and any other Japanese text visible. Combine ALL text found into a comprehensive analysis. For ALL text elements found, provide: 1. ALL original Japanese text (combined) 2. Complete vocabulary breakdown from ALL text 3. Grammar patterns from ALL text 4. Complete English translation of ALL text 5. Context and cultural notes. Return the response in JSON format with the following structure: { \"originalText\": \"ALL Japanese text found (combined)\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"noun/verb/etc\", \"jlptLevel\": \"N1-N5\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"grammar pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"beginner/intermediate/advanced\" }], \"translation\": \"Complete English translation of ALL text\", \"context\": \"cultural context and notes for ALL text elements\" }"
         
         private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
+        
+        private const val INTERACTIVE_READING_PROMPT = "Analyze this manga image for interactive reading. Identify ALL Japanese text elements and their precise locations. For each sentence or text element, provide: 1. The exact Japanese text 2. English translation 3. Position coordinates (x, y, width, height as percentages 0-1) 4. Vocabulary breakdown 5. Grammar patterns. Return JSON: { \"originalText\": \"combined text\", \"translation\": \"combined translation\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"type\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"level\" }], \"sentenceAnalyses\": [{ \"originalSentence\": \"sentence\", \"translation\": \"translation\", \"vocabulary\": [vocabulary_items], \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 } }], \"identifiedSentences\": [{ \"id\": 1, \"text\": \"sentence\", \"translation\": \"translation\", \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 }, \"vocabulary\": [vocabulary_items], \"grammarPatterns\": [grammar_patterns] }] }"
     }
 }

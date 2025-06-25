@@ -30,10 +30,7 @@ data class AIConfig(
     val enableFallback: Boolean = false,
     val openaiConfig: OpenAIConfig = OpenAIConfig(),
     val geminiConfig: GeminiConfig = GeminiConfig(),
-    val customConfig: CustomAPIConfig = CustomAPIConfig(),
-    val includeGrammar: Boolean = true,
-    val includeVocabulary: Boolean = true,
-    val includeTranslation: Boolean = true
+    val customConfig: CustomAPIConfig = CustomAPIConfig()
 ) {
     fun getConfiguredProviders(): List<AIProvider> {
         val providers = mutableListOf<AIProvider>()

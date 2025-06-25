@@ -307,64 +307,7 @@ fun AISettingsScreen(
                 }
             )
             
-            // Analysis Options
-            Card {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Analysis Options",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Include Grammar Analysis")
-                        Switch(
-                            checked = currentConfig.includeGrammar,
-                            onCheckedChange = { enabled ->
-                                currentConfig = currentConfig.copy(includeGrammar = enabled)
-                                // Don't save automatically - only when save button is clicked
-                            }
-                        )
-                    }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Include Vocabulary Analysis")
-                        Switch(
-                            checked = currentConfig.includeVocabulary,
-                            onCheckedChange = { enabled ->
-                                currentConfig = currentConfig.copy(includeVocabulary = enabled)
-                                // Don't save automatically - only when save button is clicked
-                            }
-                        )
-                    }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Include Translation")
-                        Switch(
-                            checked = currentConfig.includeTranslation,
-                            onCheckedChange = { enabled ->
-                                currentConfig = currentConfig.copy(includeTranslation = enabled)
-                                // Don't save automatically - only when save button is clicked
-                            }
-                        )
-                    }
-                }
-            }
+
             
             // Help Section
             Card {
@@ -530,7 +473,8 @@ fun ProviderConfigCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = title,
@@ -540,20 +484,20 @@ fun ProviderConfigCard(
                         MaterialTheme.colorScheme.secondary
                     } else {
                         MaterialTheme.colorScheme.onSurface
-                    }
+                    },
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
                 if (hasApiKey) {
                     Surface(
                         color = MaterialTheme.colorScheme.secondary,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        shape = MaterialTheme.shapes.extraSmall,
+                        modifier = Modifier.wrapContentSize()
                     ) {
                         Text(
-                            text = "✓ Configured",
+                            text = "✓",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                     }
                 }

@@ -33,10 +33,7 @@ class PreferencesRepository(private val context: Context) {
         private val CUSTOM_ENDPOINT_KEY = stringPreferencesKey("custom_endpoint")
         private val CUSTOM_MODEL_KEY = stringPreferencesKey("custom_model")
         
-        // General settings
-        private val INCLUDE_GRAMMAR_KEY = booleanPreferencesKey("include_grammar")
-        private val INCLUDE_VOCABULARY_KEY = booleanPreferencesKey("include_vocabulary")
-        private val INCLUDE_TRANSLATION_KEY = booleanPreferencesKey("include_translation")
+
     }
     
     val aiConfigFlow: Flow<AIConfig> = context.dataStore.data
@@ -69,10 +66,7 @@ class PreferencesRepository(private val context: Context) {
                     apiKey = customKey,
                     endpoint = customEndpoint,
                     model = (preferences[CUSTOM_MODEL_KEY] ?: "").trim()
-                ),
-                includeGrammar = preferences[INCLUDE_GRAMMAR_KEY] ?: true,
-                includeVocabulary = preferences[INCLUDE_VOCABULARY_KEY] ?: true,
-                includeTranslation = preferences[INCLUDE_TRANSLATION_KEY] ?: true
+                )
             )
             
             // Enhanced debug logging
@@ -112,11 +106,6 @@ class PreferencesRepository(private val context: Context) {
                 preferences[CUSTOM_API_KEY] = trimmedCustomKey
                 preferences[CUSTOM_ENDPOINT_KEY] = trimmedCustomEndpoint
                 preferences[CUSTOM_MODEL_KEY] = config.customConfig.model.trim()
-                
-                // General settings
-                preferences[INCLUDE_GRAMMAR_KEY] = config.includeGrammar
-                preferences[INCLUDE_VOCABULARY_KEY] = config.includeVocabulary
-                preferences[INCLUDE_TRANSLATION_KEY] = config.includeTranslation
             }
             
             // Verification after saving can be performed elsewhere if needed to avoid extra suspension and overhead.

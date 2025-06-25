@@ -75,11 +75,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     fun setMode(mode: AnalysisMode) {
         _uiState.value = _uiState.value.copy(currentMode = mode)
-        
-        // Auto-process when switching to panel analysis mode
-        if (mode == AnalysisMode.PANEL_ANALYSIS && _uiState.value.selectedImage != null && _uiState.value.panels.isEmpty()) {
-            segmentPanels()
-        }
+        // Panel analysis auto-processing removed
     }
     
     fun loadImageFromUri(uri: Uri) {
@@ -103,10 +99,7 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                     error = null
                 )
                 
-                // Auto-segment panels if in panel analysis mode
-                if (_uiState.value.currentMode == AnalysisMode.PANEL_ANALYSIS) {
-                    segmentPanels()
-                }
+                // Panel analysis auto-segmentation removed
                 
             } catch (e: Exception) {
                 println("ViewModel: Exception loading image: ${e.message}")

@@ -50,37 +50,15 @@ fun MangaApp() {
             )
             MangaAnalysisScreen(
                 viewModel = viewModel,
-                onNavigateToReading = {
-                    navController.navigate("reading_mode")
-                },
                 onNavigateToInteractiveReading = {
                     navController.navigate("interactive_reading")
                 },
                 onNavigateToSettings = {
                     navController.navigate("ai_settings")
                 },
-                onNavigateToStudyMode = {
-                    navController.navigate("study_mode")
-                },
-                onNavigateToSpeedReading = {
-                    navController.navigate("speed_reading")
-                },
-                onNavigateToImmersiveMode = {
-                    navController.navigate("immersive_mode")
-                },
-                onNavigateToVocabularyFocus = {
-                    navController.navigate("vocabulary_focus")
-                },
                 onNavigateToDebugLog = {
                     navController.navigate("debug_log")
                 }
-            )
-        }
-        
-        composable("reading_mode") {
-            val viewModel: ReadingViewModel = viewModel()
-            ReadingScreen(
-                viewModel = viewModel
             )
         }
         
@@ -90,7 +68,6 @@ fun MangaApp() {
             )
             val uiState by mangaViewModel.uiState.collectAsState()
             InteractiveReadingScreen(
-                panels = uiState.panels,
                 selectedImage = uiState.selectedImage,
                 onAnalyzeWord = { word ->
                     mangaViewModel.analyzeWord(word)
@@ -125,36 +102,13 @@ fun MangaApp() {
             )
         }
         
-        composable("study_mode") {
-            val viewModel: ReadingViewModel = viewModel()
-            StudyModeScreen(
-                viewModel = viewModel
-            )
-        }
-        
-        composable("speed_reading") {
-            val viewModel: ReadingViewModel = viewModel()
-            SpeedReadingScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-        
-        composable("immersive_mode") {
-            val viewModel: ReadingViewModel = viewModel()
-            ImmersiveModeScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-        
-        composable("vocabulary_focus") {
-            val viewModel: ReadingViewModel = viewModel()
-            VocabularyFocusScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
+        // Removed reading modes that don't use uploaded images:
+        // - reading_mode (Simple Reading)
+        // - study_mode (Study Mode)
+        // - speed_reading (Speed Reading)
+        // - immersive_mode (Immersive Mode)
+        // - vocabulary_focus (Vocabulary Focus)
+        // These modes are standalone and don't require manga image upload
         
         composable("debug_log") {
             DebugLogScreen(

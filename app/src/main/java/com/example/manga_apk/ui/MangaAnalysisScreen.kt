@@ -35,13 +35,8 @@ import com.example.manga_apk.viewmodel.MangaAnalysisViewModel
 @Composable
 fun MangaAnalysisScreen(
     viewModel: MangaAnalysisViewModel,
-    onNavigateToReading: () -> Unit,
     onNavigateToInteractiveReading: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToStudyMode: () -> Unit = {},
-    onNavigateToSpeedReading: () -> Unit = {},
-    onNavigateToImmersiveMode: () -> Unit = {},
-    onNavigateToVocabularyFocus: () -> Unit = {},
     onNavigateToDebugLog: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -105,16 +100,19 @@ fun MangaAnalysisScreen(
                         viewModel.quickAnalysis()
                     },
                     onPanelAnalysis = { viewModel.setMode(AnalysisMode.PANEL_ANALYSIS) },
-                    onReadingMode = { viewModel.setMode(AnalysisMode.READING_MODE) }
+                    onReadingMode = { viewModel.setMode(AnalysisMode.READING_MODE) },
+                    onNavigateToInteractiveReading = onNavigateToInteractiveReading
                 )
             }
             AnalysisMode.PANEL_ANALYSIS -> {
                 PanelAnalysisSection(
-                    panels = uiState.panels,
+                    analysis = uiState.overallAnalysis?.originalText,
                     selectedImage = uiState.selectedImage,
                     isProcessing = uiState.isProcessing,
-                    onAnalyzePanel = viewModel::analyzePanel,
-                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) }
+                    onAnalyze = viewModel::analyzeWithFallback,
+                    onBackToUpload = { viewModel.setMode(AnalysisMode.UPLOAD) },
+                    onRunDemo = viewModel::runDemoAnalysis,
+                    onNavigateToSettings = onNavigateToSettings
                 )
             }
             AnalysisMode.SIMPLE_ANALYSIS -> {
@@ -130,12 +128,7 @@ fun MangaAnalysisScreen(
             }
             AnalysisMode.READING_MODE -> {
                 ReadingModeSection(
-                    onNavigateToReading = onNavigateToReading,
-                    onNavigateToInteractiveReading = onNavigateToInteractiveReading,
-                    onNavigateToStudyMode = onNavigateToStudyMode,
-                    onNavigateToSpeedReading = onNavigateToSpeedReading,
-                    onNavigateToImmersiveMode = onNavigateToImmersiveMode,
-                    onNavigateToVocabularyFocus = onNavigateToVocabularyFocus
+                    onNavigateToInteractiveReading = onNavigateToInteractiveReading
                 )
             }
             AnalysisMode.STUDY_MODE -> {
@@ -523,7 +516,8 @@ fun UploadSection(
     isProcessing: Boolean,
     onQuickAnalysis: () -> Unit,
     onPanelAnalysis: () -> Unit,
-    onReadingMode: () -> Unit
+    onReadingMode: () -> Unit,
+    onNavigateToInteractiveReading: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -654,7 +648,8 @@ fun UploadSection(
                 // Panel Analysis Button
                 OutlinedButton(
                     onClick = onPanelAnalysis,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isProcessing
                 ) {
                     Icon(
                         Icons.Default.GridView,
@@ -662,12 +657,12 @@ fun UploadSection(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Panel-by-Panel Analysis")
+                    Text("Panel Analysis")
                 }
                 
                 // Reading Mode Button
                 OutlinedButton(
-                    onClick = onReadingMode,
+                    onClick = onNavigateToInteractiveReading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
@@ -703,12 +698,196 @@ fun UploadSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "• Reading Mode: Interactive study with word lookup",
+                        "• Interactive Reading: Interactive study with word lookup",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun PanelAnalysisSection(
+    analysis: String?,
+    selectedImage: android.graphics.Bitmap?,
+    isProcessing: Boolean,
+    onAnalyze: () -> Unit,
+    onBackToUpload: () -> Unit,
+    onRunDemo: () -> Unit,
+    onNavigateToSettings: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Panel Analysis",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            IconButton(onClick = onNavigateToSettings) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Image display
+        if (selectedImage != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Image(
+                    bitmap = selectedImage.asImageBitmap(),
+                    contentDescription = "Selected manga page",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // Analysis controls
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onAnalyze,
+                enabled = !isProcessing && selectedImage != null,
+                modifier = Modifier.weight(1f)
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Analytics,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (isProcessing) "Analyzing..." else "Analyze Panels")
+            }
+            
+            OutlinedButton(
+                onClick = onRunDemo,
+                enabled = !isProcessing,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Demo")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Analysis results
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            if (analysis?.isNotEmpty() == true) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Text(
+                            "Panel Analysis Results:",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    
+                    item {
+                        Text(
+                            analysis,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Default.GridView,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Panel analysis will break down the manga page into individual panels and analyze each one separately.",
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Upload an image and click 'Analyze Panels' to get started.",
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Back button
+        OutlinedButton(
+            onClick = onBackToUpload,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                Icons.Default.ArrowBack,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Back to Upload")
         }
     }
 }
@@ -765,108 +944,7 @@ fun ModeButton(
     }
 }
 
-@Composable
-fun PanelAnalysisSection(
-    panels: List<PanelSegment>,
-    selectedImage: android.graphics.Bitmap?,
-    isProcessing: Boolean,
-    onAnalyzePanel: (PanelSegment) -> Unit,
-    onBackToUpload: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Header with back button - Fixed at top
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Panel Analysis",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            OutlinedButton(
-                onClick = onBackToUpload
-            ) {
-                Icon(
-                    Icons.Default.Upload,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("New Image")
-            }
-        }
-        
-        // Scrollable content area
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (selectedImage == null) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text(
-                        text = "Please upload an image first to analyze panels.",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            } else if (panels.isEmpty() && !isProcessing) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text(
-                        text = "No panels detected. The image will be automatically segmented.",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            } else if (isProcessing) {
-                Card {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Segmenting panels...")
-                    }
-                }
-            } else {
-                Text(
-                    text = "Detected ${panels.size} panels",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                panels.forEach { panel ->
-                    PanelCard(
-                        panel = panel,
-                        onAnalyze = { onAnalyzePanel(panel) }
-                    )
-                }
-                
-                // Add bottom padding for better scrolling experience
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-        }
-    }
-}
+
 
 @Composable
 fun PanelCard(
@@ -1077,12 +1155,7 @@ fun SimpleAnalysisSection(
 
 @Composable
 fun ReadingModeSection(
-    onNavigateToReading: () -> Unit,
-    onNavigateToInteractiveReading: () -> Unit,
-    onNavigateToStudyMode: () -> Unit = {},
-    onNavigateToSpeedReading: () -> Unit = {},
-    onNavigateToImmersiveMode: () -> Unit = {},
-    onNavigateToVocabularyFocus: () -> Unit = {}
+    onNavigateToInteractiveReading: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1092,7 +1165,7 @@ fun ReadingModeSection(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            "Choose Your Reading Mode",
+            "Interactive Reading Mode",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -1101,14 +1174,14 @@ fun ReadingModeSection(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            "Select the reading mode that best fits your learning style and goals.",
+            "This mode uses your uploaded manga image for interactive text analysis.",
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
         Spacer(modifier = Modifier.height(32.dp))
         
-        // Interactive Reading Mode
+        // Interactive Reading Mode - Only mode that uses uploaded image
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1132,109 +1205,32 @@ fun ReadingModeSection(
             }
         }
         
-        // Study Mode
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Note about other reading modes
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clickable { onNavigateToStudyMode() },
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                .padding(vertical = 4.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    "📚 Study Mode",
-                    fontSize = 18.sp,
+                    "ℹ️ Other Reading Modes",
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Highlight new words, show furigana, track progress",
+                    "Study Mode, Speed Reading, Immersive Mode, and Vocabulary Focus are available as standalone features that don't require uploaded images.",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-        
-        // Speed Reading Mode
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clickable { onNavigateToSpeedReading() },
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    "⚡ Speed Reading",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Paced reading with customizable WPM settings",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        
-        // Immersive Mode
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clickable { onNavigateToImmersiveMode() },
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    "🎯 Immersive Mode",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Distraction-free full-screen reading experience",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        
-        // Vocabulary Focus Mode
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clickable { onNavigateToVocabularyFocus() },
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    "📝 Vocabulary Focus",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Focus on JLPT level vocabulary with definitions",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        OutlinedButton(
-            onClick = onNavigateToReading,
-            modifier = Modifier.fillMaxWidth(0.8f)
-        ) {
-            Text("Simple Reading Mode")
         }
     }
 }

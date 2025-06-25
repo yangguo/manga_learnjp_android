@@ -125,14 +125,30 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 // Use the existing AIService with a specialized prompt for interactive reading
                 val result = aiService.analyzeImageForInteractiveReading(bitmap, currentConfig)
                 
-                val sentences = parseInteractiveReadingResponse(result)
-                
-                _uiState.value = _uiState.value.copy(
-                    identifiedSentences = sentences,
-                    isAnalyzing = false
-                )
-                
-                Logger.logFunctionExit("InteractiveReadingViewModel", "analyzeImageForInteractiveReading")
+                if (result.isSuccess) {
+                    val textAnalysis = result.getOrThrow()
+                    val sentences = parseInteractiveReadingResponse(textAnalysis)
+                    
+                    _uiState.value = _uiState.value.copy(
+                        identifiedSentences = sentences,
+                        isAnalyzing = false
+                    )
+                    
+                    Logger.logFunctionExit("InteractiveReadingViewModel", "analyzeImageForInteractiveReading")
+                } else {
+                    // Handle analysis failure with fallback to demo sentences
+                    val exception = result.exceptionOrNull() ?: Exception("Analysis failed")
+                    Logger.logError("analyzeImageForInteractiveReading", exception)
+                    
+                    // Fall back to demo sentences if analysis fails
+                    val demoSentences = generateDemoSentences()
+                    
+                    _uiState.value = _uiState.value.copy(
+                        identifiedSentences = demoSentences,
+                        isAnalyzing = false,
+                        error = "LLM analysis failed, showing demo content: ${exception.message}"
+                    )
+                }
                 
             } catch (e: Exception) {
                 Logger.logError("analyzeImageForInteractiveReading", e)

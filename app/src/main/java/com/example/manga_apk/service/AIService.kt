@@ -16,6 +16,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -811,22 +812,24 @@ class AIService {
     /**
      * Execute HTTP request with retry logic and extended timeouts for image analysis
      */
-    private fun executeWithRetry(request: Request, maxRetries: Int = 2): Response {
+    private suspend fun executeWithRetry(request: Request, maxRetries: Int = 2): Response {
         var lastException: Exception? = null
         
         for (attempt in 0..maxRetries) {
             try {
                 if (attempt > 0) {
-                                        val delayMs = (1000 * 2.0.pow(attempt)).toLong() // Exponential backoff
+                    val delayMs = (1000 * 2.0.pow(attempt)).toLong() // Exponential backoff
                     println("AIService: Retry attempt $attempt after ${delayMs}ms delay")
                     android.util.Log.d("MangaLearnJP", "AIService: Retry attempt $attempt after ${delayMs}ms delay")
-                    Thread.sleep(delayMs)
+                    delay(delayMs)
                 }
                 
                 println("AIService: Executing request (attempt ${attempt + 1}/${maxRetries + 1}) with extended timeout")
                 android.util.Log.d("MangaLearnJP", "AIService: Executing request (attempt ${attempt + 1}/${maxRetries + 1})")
                 
-                return extendedTimeoutClient.newCall(request).execute()
+                return withContext(Dispatchers.IO) {
+                    extendedTimeoutClient.newCall(request).execute()
+                }
                 
             } catch (e: java.net.SocketTimeoutException) {
                 lastException = e
@@ -1814,28 +1817,82 @@ class AIService {
     /**
      * Specialized analysis for interactive reading mode
      * Focuses on sentence-level analysis with position detection
+     * Uses the same robust error handling and fallback logic as analyzeImage
      */
     suspend fun analyzeImageForInteractiveReading(
         bitmap: Bitmap,
         config: AIConfig
-    ): TextAnalysis {
+    ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
         Logger.logFunctionEntry("AIService", "analyzeImageForInteractiveReading")
         
         try {
-            // Use the existing analyzeImage method - it will use the default MANGA_ANALYSIS_PROMPT
-            // TODO: In the future, we could modify the analyze functions to accept custom prompts
-            val result = when (config.primaryProvider) {
-                AIProvider.OPENAI -> analyzeWithOpenAI(bitmap, config.openaiConfig)
-                AIProvider.GEMINI -> analyzeWithGemini(bitmap, config.geminiConfig)
-                AIProvider.CUSTOM -> analyzeWithCustomAPI(bitmap, config.customConfig)
+            // Use the same robust approach as analyzeImage with proper fallback handling
+            val providersToTry = config.getConfiguredProviders()
+            Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Configured providers to try: $providersToTry")
+            println("AIService: Interactive reading - Providers to try: $providersToTry")
+            
+            if (providersToTry.isEmpty()) {
+                val errorMsg = "No API providers are configured for interactive reading"
+                Logger.logError("analyzeImageForInteractiveReading", errorMsg)
+                println("AIService: ERROR - $errorMsg")
+                return@withContext Result.failure(
+                    IllegalArgumentException(errorMsg)
+                )
             }
             
-            Logger.logFunctionExit("AIService", "analyzeImageForInteractiveReading")
-            return result.getOrThrow()
+            var lastException: Exception? = null
             
+            for (provider in providersToTry) {
+                Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Attempting analysis with provider: $provider")
+                println("AIService: Interactive reading - Attempting analysis with provider: $provider")
+                android.util.Log.d("MangaLearnJP", "AIService: Interactive reading - Attempting analysis with provider: $provider")
+                
+                val result = when (provider) {
+                    AIProvider.OPENAI -> {
+                        Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Using OpenAI provider")
+                        println("AIService: Interactive reading - Using OpenAI provider")
+                        analyzeWithOpenAI(bitmap, config.openaiConfig)
+                    }
+                    AIProvider.GEMINI -> {
+                        Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Using Gemini provider")
+                        println("AIService: Interactive reading - Using Gemini provider")
+                        analyzeWithGemini(bitmap, config.geminiConfig)
+                    }
+                    AIProvider.CUSTOM -> {
+                        Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Using Custom provider")
+                        println("AIService: Interactive reading - Using Custom provider")
+                        analyzeWithCustomAPI(bitmap, config.customConfig)
+                    }
+                }
+                
+                if (result.isSuccess) {
+                    Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Analysis successful with provider: $provider")
+                    println("AIService: Interactive reading - Analysis successful with provider: $provider")
+                    Logger.logFunctionExit("AIService", "analyzeImageForInteractiveReading")
+                    return@withContext result
+                } else {
+                    lastException = result.exceptionOrNull() as? Exception
+                    Logger.logError("analyzeImageForInteractiveReading", lastException ?: Exception("Analysis failed with provider: $provider"))
+                    println("AIService: Interactive reading - Analysis failed with provider: $provider - ${lastException?.message}")
+                    
+                    // If fallback is disabled and this is the primary provider, return the failure
+                    if (!config.enableFallback && provider == config.primaryProvider) {
+                        Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Fallback disabled, returning failure from primary provider")
+                        println("AIService: Interactive reading - Fallback disabled, returning failure from primary provider")
+                        return@withContext result
+                    }
+                }
+            }
+            
+            Logger.logError("analyzeImageForInteractiveReading", lastException ?: Exception("All providers failed"))
+            println("AIService: Interactive reading - All providers failed - ${lastException?.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: Interactive reading - All providers failed", lastException)
+            Result.failure(lastException ?: Exception("All configured providers failed for interactive reading"))
         } catch (e: Exception) {
             Logger.logError("analyzeImageForInteractiveReading", e)
-            throw e
+            println("AIService: Exception in analyzeImageForInteractiveReading - ${e.message}")
+            android.util.Log.e("MangaLearnJP", "AIService: Exception in analyzeImageForInteractiveReading", e)
+            Result.failure(e)
         }
     }
     

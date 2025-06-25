@@ -809,6 +809,176 @@ class AIService {
         }
     }
     
+    // Interactive Reading Analysis Methods
+    private suspend fun analyzeWithOpenAIForInteractiveReading(
+        bitmap: Bitmap,
+        config: OpenAIConfig
+    ): Result<TextAnalysis> {
+        println("AIService: Starting analyzeWithOpenAIForInteractiveReading")
+        android.util.Log.d("MangaLearnJP", "AIService: analyzeWithOpenAIForInteractiveReading - API key length: ${config.apiKey.length}")
+        
+        if (config.apiKey.isEmpty()) {
+            val errorMsg = "OpenAI API key is not configured"
+            println("AIService: ERROR - $errorMsg")
+            android.util.Log.e("MangaLearnJP", "AIService: $errorMsg")
+            return Result.failure(IllegalArgumentException(errorMsg))
+        }
+        
+        val base64Image = bitmapToBase64(bitmap)
+        val modelToUse = config.visionModel
+        
+        val requestBody = JsonObject().apply {
+            addProperty("model", modelToUse)
+            add("messages", gson.toJsonTree(listOf(
+                mapOf(
+                    "role" to "user",
+                    "content" to listOf(
+                        mapOf("type" to "text", "text" to INTERACTIVE_READING_PROMPT),
+                        mapOf(
+                            "type" to "image_url",
+                            "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
+                        )
+                    )
+                )
+            )))
+            addProperty("max_tokens", 4000)
+            addProperty("temperature", 0.3)
+        }
+        
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        return try {
+            val response = extendedTimeoutClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                parseOpenAIResponse(responseBody)
+            } else {
+                val errorBody = response.body?.string()
+                println("AIService: OpenAI Interactive Reading API call failed with status ${response.code}")
+                Result.failure(IOException("OpenAI API call failed: ${response.code} - $errorBody"))
+            }
+        } catch (e: Exception) {
+            println("AIService: Exception in analyzeWithOpenAIForInteractiveReading - ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun analyzeWithGeminiForInteractiveReading(
+        bitmap: Bitmap,
+        config: GeminiConfig
+    ): Result<TextAnalysis> {
+        println("AIService: Starting analyzeWithGeminiForInteractiveReading")
+        
+        if (config.apiKey.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Gemini API key is not configured"))
+        }
+        
+        val base64Image = bitmapToBase64(bitmap)
+        
+        val requestBody = JsonObject().apply {
+            add("contents", gson.toJsonTree(listOf(
+                mapOf(
+                    "parts" to listOf(
+                        mapOf("text" to INTERACTIVE_READING_PROMPT),
+                        mapOf(
+                            "inline_data" to mapOf(
+                                "mime_type" to "image/jpeg",
+                                "data" to base64Image
+                            )
+                        )
+                    )
+                )
+            )))
+        }
+        
+        val request = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${config.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        return try {
+            val response = extendedTimeoutClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                parseGeminiResponse(responseBody)
+            } else {
+                val errorBody = response.body?.string()
+                println("AIService: Gemini Interactive Reading API call failed with status ${response.code}")
+                Result.failure(IOException("Gemini API call failed: ${response.code} - $errorBody"))
+            }
+        } catch (e: Exception) {
+            println("AIService: Exception in analyzeWithGeminiForInteractiveReading - ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun analyzeWithCustomAPIForInteractiveReading(
+        bitmap: Bitmap,
+        config: CustomAPIConfig
+    ): Result<TextAnalysis> {
+        println("AIService: Starting analyzeWithCustomAPIForInteractiveReading")
+        
+        if (config.apiKey.isEmpty() || config.endpoint.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Custom API configuration is incomplete"))
+        }
+        
+        val base64Image = bitmapToBase64(bitmap)
+        val modelToUse = if (config.model.trim().isEmpty()) "gpt-4-vision-preview" else config.model.trim()
+        
+        val finalEndpoint = if (config.endpoint.contains("/chat/completions")) {
+            config.endpoint.trim()
+        } else {
+            val baseUrl = config.endpoint.trim().removeSuffix("/")
+            "$baseUrl/chat/completions"
+        }
+        
+        val requestBody = JsonObject().apply {
+            addProperty("model", modelToUse)
+            add("messages", gson.toJsonTree(listOf(
+                mapOf(
+                    "role" to "user",
+                    "content" to listOf(
+                        mapOf("type" to "text", "text" to INTERACTIVE_READING_PROMPT),
+                        mapOf(
+                            "type" to "image_url",
+                            "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
+                        )
+                    )
+                )
+            )))
+            addProperty("max_tokens", 4000)
+            addProperty("temperature", 0.3)
+        }
+        
+        val request = Request.Builder()
+            .url(finalEndpoint)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        return try {
+            val response = extendedTimeoutClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                parseOpenAIResponse(responseBody) // Use OpenAI parser for custom APIs
+            } else {
+                val errorBody = response.body?.string()
+                println("AIService: Custom API Interactive Reading call failed with status ${response.code}")
+                Result.failure(IOException("Custom API call failed: ${response.code} - $errorBody"))
+            }
+        } catch (e: Exception) {
+            println("AIService: Exception in analyzeWithCustomAPIForInteractiveReading - ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
     /**
      * Execute HTTP request with retry logic and extended timeouts for image analysis
      */
@@ -1851,17 +2021,17 @@ class AIService {
                     AIProvider.OPENAI -> {
                         Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Using OpenAI provider")
                         println("AIService: Interactive reading - Using OpenAI provider")
-                        analyzeWithOpenAI(bitmap, config.openaiConfig)
+                        analyzeWithOpenAIForInteractiveReading(bitmap, config.openaiConfig)
                     }
                     AIProvider.GEMINI -> {
                         Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Using Gemini provider")
                         println("AIService: Interactive reading - Using Gemini provider")
-                        analyzeWithGemini(bitmap, config.geminiConfig)
+                        analyzeWithGeminiForInteractiveReading(bitmap, config.geminiConfig)
                     }
                     AIProvider.CUSTOM -> {
                         Logger.i(Logger.Category.AI_SERVICE, "Interactive reading - Using Custom provider")
                         println("AIService: Interactive reading - Using Custom provider")
-                        analyzeWithCustomAPI(bitmap, config.customConfig)
+                        analyzeWithCustomAPIForInteractiveReading(bitmap, config.customConfig)
                     }
                 }
                 

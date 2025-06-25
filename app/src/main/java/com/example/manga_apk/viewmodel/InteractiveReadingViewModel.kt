@@ -68,6 +68,16 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 
                 val currentConfig = _uiState.value.aiConfig
                 
+                // Validate API configuration before making the call
+                val validationError = validateApiConfiguration(currentConfig)
+                if (validationError != null) {
+                    _uiState.value = _uiState.value.copy(
+                        isAnalyzing = false,
+                        error = validationError
+                    )
+                    return@launch
+                }
+                
                 // Use the existing AIService with a specialized prompt for interactive reading
                 val result = aiService.analyzeImageForInteractiveReading(bitmap, currentConfig)
                 
@@ -175,5 +185,51 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         _uiState.value.selectedImage?.let { bitmap ->
             analyzeImageForInteractiveReading(bitmap)
         }
+    }
+    
+    private fun validateApiConfiguration(config: AIConfig): String? {
+        // Check if any provider is configured
+        val hasOpenAI = config.openaiConfig.apiKey.trim().isNotEmpty()
+        val hasGemini = config.geminiConfig.apiKey.trim().isNotEmpty()
+        val hasCustom = config.customConfig.apiKey.trim().isNotEmpty() && config.customConfig.endpoint.trim().isNotEmpty()
+        
+        if (!hasOpenAI && !hasGemini && !hasCustom) {
+            return "❌ No AI providers configured. Please set up at least one API key in Settings:\n" +
+                    "• OpenAI API key for GPT-4 Vision\n" +
+                    "• Google Gemini API key\n" +
+                    "• Custom API endpoint and key"
+        }
+        
+        // Validate primary provider
+        when (config.primaryProvider) {
+            AIProvider.OPENAI -> {
+                if (!hasOpenAI) {
+                    return "❌ OpenAI is set as primary provider but API key is missing.\n\n💡 Solution: Add your OpenAI API key in Settings or switch to a different primary provider."
+                }
+                val trimmedKey = config.openaiConfig.apiKey.trim()
+                if (trimmedKey.length < 20) {
+                    return "❌ OpenAI API key appears to be invalid (too short: ${trimmedKey.length} characters).\n\n💡 Solution: Check your OpenAI API key - it should start with 'sk-' and be much longer."
+                }
+                if (!trimmedKey.startsWith("sk-")) {
+                    return "❌ OpenAI API key format appears incorrect (should start with 'sk-').\n\n💡 Solution: Verify you copied the correct API key from OpenAI platform."
+                }
+            }
+            AIProvider.GEMINI -> {
+                if (!hasGemini) {
+                    return "❌ Gemini is set as primary provider but API key is missing.\n\n💡 Solution: Add your Google Gemini API key in Settings or switch to a different primary provider."
+                }
+                val trimmedKey = config.geminiConfig.apiKey.trim()
+                if (trimmedKey.length < 20) {
+                    return "❌ Gemini API key appears to be invalid (too short: ${trimmedKey.length} characters).\n\n💡 Solution: Check your Gemini API key from Google AI Studio."
+                }
+            }
+            AIProvider.CUSTOM -> {
+                if (!hasCustom) {
+                    return "❌ Custom API is set as primary provider but API key or endpoint is missing.\n\n💡 Solution: Add your custom API key and endpoint in Settings or switch to a different primary provider."
+                }
+            }
+        }
+        
+        return null // All validations passed
     }
 }

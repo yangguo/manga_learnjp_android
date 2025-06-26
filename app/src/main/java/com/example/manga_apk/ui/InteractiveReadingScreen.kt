@@ -217,6 +217,20 @@ fun InteractiveReadingScreen(
                         }
                     }
                 }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "💡 Troubleshooting Tips:\n" +
+                            "• Ensure image contains clear Japanese text\n" +
+                            "• Try different AI providers in Settings\n" +
+                            "• Check API key configuration\n" +
+                            "• Use high-quality, well-lit manga images\n" +
+                            "• Verify your internet connection",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
+                    textAlign = TextAlign.Left
+                )
             }
         }
     }

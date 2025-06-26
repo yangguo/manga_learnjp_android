@@ -140,10 +140,27 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                     val textAnalysis = result.getOrThrow()
                     val sentences = parseInteractiveReadingResponse(textAnalysis)
                     
-                    _uiState.value = _uiState.value.copy(
-                        identifiedSentences = sentences,
-                        isAnalyzing = false
-                    )
+                    // If no sentences were identified, provide helpful feedback and demo content
+                    if (sentences.isEmpty()) {
+                        Logger.w(Logger.Category.VIEWMODEL, "No sentences identified from AI analysis, providing demo content")
+                        val demoSentences = generateDemoSentences()
+                        _uiState.value = _uiState.value.copy(
+                            identifiedSentences = demoSentences,
+                            isAnalyzing = false,
+                            error = "No Japanese text was identified in the image. This could be due to:\n" +
+                                    "• Image quality issues (too blurry, low resolution)\n" +
+                                    "• No Japanese text visible in the image\n" +
+                                    "• AI provider limitations\n\n" +
+                                    "Showing demo content for reference. Try uploading a clearer manga image with visible Japanese text."
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            identifiedSentences = sentences,
+                            isAnalyzing = false,
+                            error = null
+                        )
+                        Logger.i(Logger.Category.VIEWMODEL, "Successfully identified ${sentences.size} sentences")
+                    }
                     
                     Logger.logFunctionExit("InteractiveReadingViewModel", "analyzeImageForInteractiveReading")
                 } else {
@@ -180,25 +197,48 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         // Convert the TextAnalysis result to IdentifiedSentence objects
         // If the analysis contains identifiedSentences, use those
         if (analysis.identifiedSentences.isNotEmpty()) {
+            Logger.i(Logger.Category.VIEWMODEL, "Using ${analysis.identifiedSentences.size} pre-parsed identified sentences")
             return analysis.identifiedSentences
         }
         
         // Otherwise, convert sentence analyses to identified sentences
-        return analysis.sentenceAnalyses.mapIndexed { index, sentenceAnalysis ->
-            IdentifiedSentence(
-                id = index + 1,
-                text = sentenceAnalysis.originalSentence,
-                translation = sentenceAnalysis.translation,
-                position = sentenceAnalysis.position ?: TextPosition(
-                    x = 0.1f + (index % 3) * 0.3f,
-                    y = 0.2f + (index / 3) * 0.2f,
-                    width = 0.25f,
-                    height = 0.06f
-                ),
-                vocabulary = sentenceAnalysis.vocabulary,
-                grammarPatterns = analysis.grammarPatterns
+        if (analysis.sentenceAnalyses.isNotEmpty()) {
+            Logger.i(Logger.Category.VIEWMODEL, "Converting ${analysis.sentenceAnalyses.size} sentence analyses to identified sentences")
+            return analysis.sentenceAnalyses.mapIndexed { index, sentenceAnalysis ->
+                IdentifiedSentence(
+                    id = index + 1,
+                    text = sentenceAnalysis.originalSentence,
+                    translation = sentenceAnalysis.translation,
+                    position = sentenceAnalysis.position ?: TextPosition(
+                        x = 0.1f + (index % 3) * 0.3f,
+                        y = 0.2f + (index / 3) * 0.2f,
+                        width = 0.25f,
+                        height = 0.06f
+                    ),
+                    vocabulary = sentenceAnalysis.vocabulary,
+                    grammarPatterns = analysis.grammarPatterns
+                )
+            }
+        }
+        
+        // If no sentence-specific data, but we have overall text, create a single sentence
+        if (analysis.originalText.isNotEmpty()) {
+            Logger.i(Logger.Category.VIEWMODEL, "Creating single sentence from overall text analysis")
+            return listOf(
+                IdentifiedSentence(
+                    id = 1,
+                    text = analysis.originalText,
+                    translation = analysis.translation,
+                    position = TextPosition(0.3f, 0.3f, 0.4f, 0.1f),
+                    vocabulary = analysis.vocabulary,
+                    grammarPatterns = analysis.grammarPatterns
+                )
             )
         }
+        
+        // Return empty list if no meaningful content
+        Logger.w(Logger.Category.VIEWMODEL, "No meaningful content found in analysis result")
+        return emptyList()
     }
     
     private fun generateDemoSentences(): List<IdentifiedSentence> {

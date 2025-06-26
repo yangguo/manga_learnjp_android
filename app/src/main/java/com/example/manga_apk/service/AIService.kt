@@ -1317,8 +1317,11 @@ class AIService {
      */
     private fun parseJsonWithValidation(jsonContent: String): TextAnalysis? {
         return try {
-            // First attempt: Direct parsing
-            val analysis = gson.fromJson(jsonContent, TextAnalysis::class.java)
+            // First check if JSON is incomplete (common issue with interactive reading)
+            val repairedContent = repairIncompleteJson(jsonContent)
+            
+            // First attempt: Direct parsing with repaired content
+            val analysis = gson.fromJson(repairedContent, TextAnalysis::class.java)
             
             // Validate parsed object - ensure critical fields are not null/empty
             if (analysis != null && validateTextAnalysis(analysis)) {
@@ -1327,7 +1330,7 @@ class AIService {
             }
             
             // Second attempt: Try parsing as JsonObject first for better error handling
-            val jsonObject = gson.fromJson(jsonContent, JsonObject::class.java)
+            val jsonObject = gson.fromJson(repairedContent, JsonObject::class.java)
             if (jsonObject != null) {
                 return parseFromJsonObject(jsonObject)
             }
@@ -1336,7 +1339,8 @@ class AIService {
             null
         } catch (e: JsonSyntaxException) {
             Logger.w(Logger.Category.AI_SERVICE, "JSON syntax error in enhanced parser: ${e.message}")
-            null
+            // Try to extract partial data even from malformed JSON
+            return parsePartialJson(jsonContent)
         } catch (e: Exception) {
             Logger.w(Logger.Category.AI_SERVICE, "Unexpected error in JSON parsing: ${e.message}")
             null
@@ -1446,66 +1450,106 @@ class AIService {
                 emptyList<SentenceAnalysis>()
             }
             
-            // Parse identified sentences array safely
+            // Parse identified sentences array safely with enhanced error handling
             val identifiedSentences = try {
                 val identifiedArray = jsonObject.getAsJsonArray("identifiedSentences")
-                identifiedArray?.map { element ->
-                    val sentenceObj = element.asJsonObject
-                    val positionObj = sentenceObj.getAsJsonObject("position")
-                    val position = if (positionObj != null) {
-                        TextPosition(
-                            x = positionObj.get("x")?.asFloat ?: 0f,
-                            y = positionObj.get("y")?.asFloat ?: 0f,
-                            width = positionObj.get("width")?.asFloat ?: 0f,
-                            height = positionObj.get("height")?.asFloat ?: 0f
-                        )
-                    } else {
-                        TextPosition(0f, 0f, 0f, 0f)
-                    }
+                if (identifiedArray == null) {
+                    Logger.w(Logger.Category.AI_SERVICE, "No identifiedSentences array found in JSON")
+                    emptyList<IdentifiedSentence>()
+                } else {
+                    Logger.i(Logger.Category.AI_SERVICE, "Parsing ${identifiedArray.size()} identified sentences")
+                    val sentences = mutableListOf<IdentifiedSentence>()
                     
-                    // Parse vocabulary for this identified sentence
-                    val sentenceVocab = try {
-                        val vocabArray = sentenceObj.getAsJsonArray("vocabulary")
-                        vocabArray?.map { vocabElement ->
-                            val vocabObj = vocabElement.asJsonObject
-                            VocabularyItem(
-                                word = vocabObj.get("word")?.asString ?: "",
-                                reading = vocabObj.get("reading")?.asString ?: "",
-                                meaning = vocabObj.get("meaning")?.asString ?: "",
-                                partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: ""
+                    for (i in 0 until identifiedArray.size()) {
+                        try {
+                            val sentenceObj = identifiedArray[i].asJsonObject
+                            val positionObj = sentenceObj.getAsJsonObject("position")
+                            val position = if (positionObj != null) {
+                                TextPosition(
+                                    x = positionObj.get("x")?.asFloat ?: 0f,
+                                    y = positionObj.get("y")?.asFloat ?: 0f,
+                                    width = positionObj.get("width")?.asFloat ?: 0f,
+                                    height = positionObj.get("height")?.asFloat ?: 0f
+                                )
+                            } else {
+                                // Generate default position if missing
+                                TextPosition(
+                                    x = 0.1f + (i % 3) * 0.3f,
+                                    y = 0.2f + (i / 3) * 0.2f,
+                                    width = 0.25f,
+                                    height = 0.06f
+                                )
+                            }
+                            
+                            // Parse vocabulary for this identified sentence
+                            val sentenceVocab = try {
+                                val vocabArray = sentenceObj.getAsJsonArray("vocabulary")
+                                vocabArray?.mapNotNull { vocabElement ->
+                                    try {
+                                        val vocabObj = vocabElement.asJsonObject
+                                        VocabularyItem(
+                                            word = vocabObj.get("word")?.asString ?: "",
+                                            reading = vocabObj.get("reading")?.asString ?: "",
+                                            meaning = vocabObj.get("meaning")?.asString ?: "",
+                                            partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: ""
+                                        )
+                                    } catch (e: Exception) {
+                                        Logger.w(Logger.Category.AI_SERVICE, "Failed to parse vocabulary item $i: ${e.message}")
+                                        null
+                                    }
+                                } ?: emptyList()
+                            } catch (e: Exception) {
+                                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse vocabulary for sentence $i: ${e.message}")
+                                emptyList<VocabularyItem>()
+                            }
+                            
+                            // Parse grammar patterns for this identified sentence
+                            val sentenceGrammar = try {
+                                val grammarArray = sentenceObj.getAsJsonArray("grammarPatterns")
+                                grammarArray?.mapNotNull { grammarElement ->
+                                    try {
+                                        val grammarObj = grammarElement.asJsonObject
+                                        GrammarPattern(
+                                            pattern = grammarObj.get("pattern")?.asString ?: "",
+                                            explanation = grammarObj.get("explanation")?.asString ?: "",
+                                            example = grammarObj.get("example")?.asString ?: "",
+                                            difficulty = grammarObj.get("difficulty")?.asString ?: ""
+                                        )
+                                    } catch (e: Exception) {
+                                        Logger.w(Logger.Category.AI_SERVICE, "Failed to parse grammar pattern $i: ${e.message}")
+                                        null
+                                    }
+                                } ?: emptyList()
+                            } catch (e: Exception) {
+                                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse grammar patterns for sentence $i: ${e.message}")
+                                emptyList<GrammarPattern>()
+                            }
+                            
+                            val sentence = IdentifiedSentence(
+                                id = sentenceObj.get("id")?.asInt ?: (i + 1),
+                                text = sentenceObj.get("text")?.asString ?: "",
+                                translation = sentenceObj.get("translation")?.asString ?: "",
+                                position = position,
+                                vocabulary = sentenceVocab,
+                                grammarPatterns = sentenceGrammar
                             )
-                        } ?: emptyList()
-                    } catch (e: Exception) {
-                        emptyList<VocabularyItem>()
+                            
+                            // Only add sentence if it has meaningful content
+                            if (sentence.text.isNotEmpty() || sentence.translation.isNotEmpty()) {
+                                sentences.add(sentence)
+                            }
+                            
+                        } catch (e: Exception) {
+                            Logger.w(Logger.Category.AI_SERVICE, "Failed to parse identified sentence $i: ${e.message}")
+                            // Continue parsing other sentences even if one fails
+                        }
                     }
                     
-                    // Parse grammar patterns for this identified sentence
-                    val sentenceGrammar = try {
-                        val grammarArray = sentenceObj.getAsJsonArray("grammarPatterns")
-                        grammarArray?.map { grammarElement ->
-                            val grammarObj = grammarElement.asJsonObject
-                            GrammarPattern(
-                                pattern = grammarObj.get("pattern")?.asString ?: "",
-                                explanation = grammarObj.get("explanation")?.asString ?: "",
-                                example = grammarObj.get("example")?.asString ?: "",
-                                difficulty = grammarObj.get("difficulty")?.asString ?: ""
-                            )
-                        } ?: emptyList()
-                    } catch (e: Exception) {
-                        emptyList<GrammarPattern>()
-                    }
-                    
-                    IdentifiedSentence(
-                        id = sentenceObj.get("id")?.asInt ?: 0,
-                        text = sentenceObj.get("text")?.asString ?: "",
-                        translation = sentenceObj.get("translation")?.asString ?: "",
-                        position = position,
-                        vocabulary = sentenceVocab,
-                        grammarPatterns = sentenceGrammar
-                    )
-                } ?: emptyList()
+                    Logger.i(Logger.Category.AI_SERVICE, "Successfully parsed ${sentences.size} identified sentences")
+                    sentences
+                }
             } catch (e: Exception) {
-                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse identified sentences: ${e.message}")
+                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse identified sentences array: ${e.message}")
                 emptyList<IdentifiedSentence>()
             }
             
@@ -1700,7 +1744,7 @@ class AIService {
             try {
                 // Extract panel region from bitmap
                 val panelBitmap = extractPanelFromBitmap(bitmap, panel.boundingBox)
-                
+
                 // Analyze the panel text
                 val analysisResult = analyzeImageEnhanced(panelBitmap, config, AnalysisType.COMPREHENSIVE)
                 
@@ -2189,6 +2233,444 @@ class AIService {
         
         private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
         
-        private const val INTERACTIVE_READING_PROMPT = "Analyze this manga image for interactive reading. CRITICAL: Identify EVERY SINGLE Japanese text element visible in the image, no matter how small or faint. This includes: speech bubbles, thought bubbles, sound effects (onomatopoeia), background text, signs, labels, narration boxes, and any other text. Scan the ENTIRE image systematically from top to bottom, left to right. For EACH individual text element found, provide: 1. The exact Japanese text 2. English translation 3. Precise position coordinates (x, y, width, height as percentages 0-1) 4. Vocabulary breakdown 5. Grammar patterns. IMPORTANT: Create separate entries for each distinct text element - do not combine multiple text elements into one. Return JSON: { \"originalText\": \"combined text\", \"translation\": \"combined translation\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"type\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"level\" }], \"sentenceAnalyses\": [{ \"originalSentence\": \"sentence\", \"translation\": \"translation\", \"vocabulary\": [vocabulary_items], \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 } }], \"identifiedSentences\": [{ \"id\": 1, \"text\": \"sentence\", \"translation\": \"translation\", \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 }, \"vocabulary\": [vocabulary_items], \"grammarPatterns\": [grammar_patterns] }] }"
+        private const val INTERACTIVE_READING_PROMPT = "Analyze this manga image and identify ALL Japanese text. Find speech bubbles, sound effects, signs, and any other Japanese text. For EACH text element found, provide: 1) The Japanese text 2) English translation 3) Position coordinates (x,y,width,height as 0-1 percentages) 4) Key vocabulary. Return JSON: { \"originalText\": \"combined_text\", \"translation\": \"combined_translation\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"type\" }], \"identifiedSentences\": [{ \"id\": 1, \"text\": \"sentence\", \"translation\": \"translation\", \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 }, \"vocabulary\": [vocab_items] }] }"
+    }
+    
+    /**
+     * Repair incomplete JSON by completing common structural issues
+     * Based on web app's sophisticated JSON repair logic
+     */
+    /**
+     * Repair incomplete JSON by fixing common structural issues
+     * Based on sophisticated web app patterns for handling truncated responses
+     */
+    private fun repairIncompleteJson(jsonContent: String): String {
+        var repaired = jsonContent.trim()
+        
+        try {
+            // Remove markdown code blocks if present (multiple patterns)
+            repaired = removeMarkdownCodeBlocks(repaired)
+            
+            // Remove any leading/trailing non-JSON content
+            repaired = cleanNonJsonContent(repaired)
+            
+            // Fix incomplete string values
+            repaired = fixIncompleteStrings(repaired)
+            
+            // Balance brackets and braces
+            repaired = balanceBrackets(repaired)
+            
+            // Clean up trailing commas
+            repaired = repaired.replace(Regex(",\\s*}"), "}")
+                             .replace(Regex(",\\s*]"), "]")
+            
+            if (repaired != jsonContent.trim()) {
+                Logger.i(Logger.Category.AI_SERVICE, "JSON repair applied - original: ${jsonContent.length} chars, repaired: ${repaired.length} chars")
+            }
+            
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "JSON repair failed: ${e.message}")
+            return jsonContent // Return original if repair fails
+        }
+        
+        return repaired
+    }
+    
+    /**
+     * Remove various markdown code block patterns
+     */
+    private fun removeMarkdownCodeBlocks(content: String): String {
+        var cleaned = content
+        
+        // Handle multiple markdown patterns
+        val patterns = listOf(
+            Regex("```(?:json)?\\s*([\\s\\S]*?)\\s*```"),
+            Regex("```\\s*([\\s\\S]*?)\\s*```"),
+            Regex("`{3,}\\s*json\\s*([\\s\\S]*?)`{3,}", RegexOption.IGNORE_CASE),
+            Regex("`{3,}\\s*([\\s\\S]*?)`{3,}")
+        )
+        
+        for (pattern in patterns) {
+            val match = pattern.find(cleaned)
+            if (match != null) {
+                cleaned = match.groupValues[1].trim()
+                break
+            }
+        }
+        
+        // Remove simple markdown patterns
+        cleaned = cleaned.replace(Regex("```json\\s*"), "")
+        cleaned = cleaned.replace(Regex("```\\s*$"), "")
+        cleaned = cleaned.replace(Regex("^```\\s*"), "")
+        
+        return cleaned.trim()
+    }
+    
+    /**
+     * Clean non-JSON content from the beginning and end
+     */
+    private fun cleanNonJsonContent(content: String): String {
+        var cleaned = content.trim()
+        
+        // Find first { or [ 
+        val startIndex = cleaned.indexOfFirst { it == '{' || it == '[' }
+        if (startIndex > 0) {
+            cleaned = cleaned.substring(startIndex)
+        }
+        
+        // Remove common AI response prefixes
+        val prefixPatterns = listOf(
+            "Here's the analysis:",
+            "Here is the analysis:",
+            "Analysis:",
+            "Result:",
+            "JSON:",
+            "Response:"
+        )
+        
+        for (prefix in prefixPatterns) {
+            if (cleaned.startsWith(prefix, ignoreCase = true)) {
+                cleaned = cleaned.removePrefix(prefix).trim()
+                val jsonStart = cleaned.indexOfFirst { it == '{' || it == '[' }
+                if (jsonStart >= 0) {
+                    cleaned = cleaned.substring(jsonStart)
+                }
+                break
+            }
+        }
+        
+        return cleaned
+    }
+    
+    /**
+     * Fix incomplete string values that may have been truncated
+     */
+    private fun fixIncompleteStrings(content: String): String {
+        var fixed = content
+        
+        // Handle unclosed strings using quote counting
+        if (fixed.count { it == '"' } % 2 != 0) {
+            // Find the last quote and see if it needs closing
+            val lastQuoteIndex = fixed.lastIndexOf('"')
+            if (lastQuoteIndex >= 0) {
+                val afterLastQuote = fixed.substring(lastQuoteIndex + 1)
+                // If there's content after the last quote that doesn't close it properly
+                if (!afterLastQuote.contains('"') && afterLastQuote.trim().isNotEmpty()) {
+                    // Check if this looks like an incomplete value
+                    if (afterLastQuote.trim().let { it.endsWith(",") || it.contains(":") || it.contains("\\") }) {
+                        // Close the incomplete string
+                        val beforeIncomplete = fixed.substring(0, lastQuoteIndex + 1)
+                        val incompleteText = afterLastQuote.trimEnd(',', ' ', '\n', '\t', '\\')
+                        fixed = beforeIncomplete + incompleteText + "\""
+                    } else {
+                        // Just close the string
+                        fixed += "\""
+                    }
+                } else {
+                    fixed += "\""
+                }
+                Logger.w(Logger.Category.AI_SERVICE, "Added closing quote for unclosed string")
+            }
+        }
+        
+        return fixed
+    }
+    
+    /**
+     * Balance brackets and braces more intelligently
+     */
+    private fun balanceBrackets(content: String): String {
+        var balanced = content
+        
+        // Find JSON content by looking for opening and closing braces
+        val jsonStart = balanced.indexOf('{')
+        if (jsonStart != -1) {
+            val jsonEnd = findMatchingClosingBrace(balanced, jsonStart)
+            if (jsonEnd != -1) {
+                balanced = balanced.substring(jsonStart, jsonEnd + 1)
+            } else {
+                // Count unmatched brackets and braces properly
+                var braceCount = 0
+                var bracketCount = 0
+                var inString = false
+                var escapeNext = false
+                
+                for (char in balanced) {
+                    when {
+                        escapeNext -> escapeNext = false
+                        char == '\\' -> escapeNext = true
+                        char == '"' && !escapeNext -> inString = !inString
+                        !inString -> when (char) {
+                            '{' -> braceCount++
+                            '}' -> braceCount--
+                            '[' -> bracketCount++
+                            ']' -> bracketCount--
+                        }
+                    }
+                }
+                
+                // If we have unclosed structures, try to close them intelligently
+                if (braceCount > 0 || bracketCount > 0) {
+                    Logger.i(Logger.Category.AI_SERVICE, "Detected incomplete JSON structure - braces: $braceCount, brackets: $bracketCount")
+                    
+                    // Clean up trailing incomplete content
+                    balanced = cleanTrailingContent(balanced)
+                    
+                    // Close missing structures in the right order
+                    // Close arrays first, then objects
+                    repeat(bracketCount) { balanced += "]" }
+                    repeat(braceCount) { balanced += "}" }
+                    
+                    Logger.i(Logger.Category.AI_SERVICE, "Repaired JSON structure by adding ${bracketCount} brackets and ${braceCount} braces")
+                }
+            }
+        }
+        
+        return balanced
+    }
+    
+    /**
+     * Clean up trailing incomplete content
+     */
+    private fun cleanTrailingContent(content: String): String {
+        var cleaned = content.trimEnd()
+        
+        // Remove common trailing issues
+        val trailingPatterns = listOf(",", ",\n", ", ", ":\"", ": \"", ":\\\"")
+        
+        for (pattern in trailingPatterns) {
+            if (cleaned.endsWith(pattern)) {
+                cleaned = cleaned.removeSuffix(pattern).trimEnd()
+                break
+            }
+        }
+        
+        // If ends with incomplete key-value pair, remove it
+        val lastColonIndex = cleaned.lastIndexOf(':')
+        if (lastColonIndex >= 0) {
+            val afterColon = cleaned.substring(lastColonIndex + 1).trim()
+            // If value is incomplete (just quotes or partial content)
+            if (afterColon == "\"" || afterColon.matches(Regex("\"[^\"]*$"))) {
+                // Find the key that goes with this incomplete value
+                val beforeColon = cleaned.substring(0, lastColonIndex)
+                val lastCommaOrBrace = maxOf(beforeColon.lastIndexOf(','), beforeColon.lastIndexOf('{'))
+                if (lastCommaOrBrace >= 0) {
+                    cleaned = cleaned.substring(0, lastCommaOrBrace + 1).trimEnd(',')
+                }
+            }
+        }
+        
+        return cleaned
+    }
+    
+    /**
+     * Find matching closing brace using proper bracket counting
+     * Based on web app's bracket balancing logic
+     */
+    private fun findMatchingClosingBrace(content: String, startIndex: Int): Int {
+        var braceCount = 0
+        var inString = false
+        var escapeNext = false
+        
+        for (i in startIndex until content.length) {
+            val char = content[i]
+            
+            if (escapeNext) {
+                escapeNext = false
+                continue
+            }
+            
+            if (char == '\\') {
+                escapeNext = true
+                continue
+            }
+            
+            if (char == '"' && !escapeNext) {
+                inString = !inString
+                continue
+            }
+            
+            if (!inString) {
+                when (char) {
+                    '{' -> braceCount++
+                    '}' -> {
+                        braceCount--
+                        if (braceCount == 0) {
+                            return i
+                        }
+                    }
+                }
+            }
+        }
+        
+        return -1 // No matching brace found
+    }
+    
+    /**
+     * Parse partial JSON even when structure is incomplete
+     * Based on web app's sophisticated partial data extraction
+     */
+    private fun parsePartialJson(jsonContent: String): TextAnalysis? {
+        return try {
+            Logger.i(Logger.Category.AI_SERVICE, "Attempting partial JSON parsing for incomplete content")
+            
+            // Check if this looks like interactive reading analysis
+            val isInteractiveReading = jsonContent.contains("identifiedSentences")
+            
+            if (isInteractiveReading) {
+                return extractPartialInteractiveReadingData(jsonContent)
+            } else {
+                return extractPartialTextData(jsonContent)
+            }
+            
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Partial JSON parsing failed: ${e.message}")
+            null
+        }
+    }
+    
+    /**
+     * Extract partial data for interactive reading mode
+     * Handles truncated identifiedSentences arrays specifically
+     */
+    private fun extractPartialInteractiveReadingData(content: String): TextAnalysis? {
+        try {
+            var originalText = ""
+            var translation = ""
+            val vocabulary = mutableListOf<VocabularyItem>()
+            val identifiedSentences = mutableListOf<IdentifiedSentence>()
+            
+            // Extract basic fields using regex
+            val originalTextMatch = Regex("\"originalText\"\\s*:\\s*\"([^\"]+)\"").find(content)
+            originalTextMatch?.let { originalText = it.groupValues[1] }
+            
+            val translationMatch = Regex("\"translation\"\\s*:\\s*\"([^\"]+)\"").find(content)
+            translationMatch?.let { translation = it.groupValues[1] }
+            
+            // Extract vocabulary items with more robust pattern
+            val vocabPattern = Regex("\"word\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"reading\"\\s*:\\s*\"([^\"]*?)\"\\s*,\\s*\"meaning\"\\s*:\\s*\"([^\"]+)\"")
+            vocabPattern.findAll(content).forEach { match ->
+                vocabulary.add(VocabularyItem(
+                    word = match.groupValues[1],
+                    reading = match.groupValues[2],
+                    meaning = match.groupValues[3],
+                    partOfSpeech = ""
+                ))
+            }
+            
+            // Extract identified sentences with enhanced pattern matching
+            val sentenceBlockPattern = Regex("\\{[^{}]*\"id\"[^{}]*\"text\"[^{}]*\"translation\"[^{}]*\\}")
+            var sentenceId = 1
+            
+            sentenceBlockPattern.findAll(content).forEach { match ->
+                try {
+                    val sentenceBlock = match.value
+                    val textMatch = Regex("\"text\"\\s*:\\s*\"([^\"]+)\"").find(sentenceBlock)
+                    val translationMatch = Regex("\"translation\"\\s*:\\s*\"([^\"]+)\"").find(sentenceBlock)
+                    
+                    if (textMatch != null && translationMatch != null) {
+                        // Try to extract position if available
+                        val positionMatch = Regex("\"position\"\\s*:\\s*\\{[^}]*\"x\"\\s*:\\s*([\\d.]+)[^}]*\"y\"\\s*:\\s*([\\d.]+)[^}]*\\}").find(sentenceBlock)
+                        val position = if (positionMatch != null) {
+                            val x = positionMatch.groupValues[1].toFloatOrNull() ?: 0.1f
+                            val y = positionMatch.groupValues[2].toFloatOrNull() ?: 0.1f
+                            TextPosition(x, y, 0.25f, 0.06f)
+                        } else {
+                            TextPosition(
+                                x = 0.1f + (sentenceId % 3) * 0.3f,
+                                y = 0.2f + (sentenceId / 3) * 0.2f,
+                                width = 0.25f,
+                                height = 0.06f
+                            )
+                        }
+                        
+                        identifiedSentences.add(IdentifiedSentence(
+                            id = sentenceId++,
+                            text = textMatch.groupValues[1],
+                            translation = translationMatch.groupValues[1],
+                            position = position,
+                            vocabulary = emptyList(),
+                            grammarPatterns = emptyList()
+                        ))
+                    }
+                } catch (e: Exception) {
+                    Logger.w(Logger.Category.AI_SERVICE, "Failed to parse sentence block: ${e.message}")
+                }
+            }
+            
+            if (originalText.isNotEmpty() || translation.isNotEmpty() || vocabulary.isNotEmpty() || identifiedSentences.isNotEmpty()) {
+                Logger.i(Logger.Category.AI_SERVICE, "Partial interactive reading parsing successful - extracted ${vocabulary.size} vocab items, ${identifiedSentences.size} sentences")
+                return TextAnalysis(
+                    originalText = originalText.ifEmpty { "Partial extraction from incomplete response" },
+                    translation = translation.ifEmpty { "Translation partially extracted" },
+                    vocabulary = vocabulary,
+                    grammarPatterns = emptyList(),
+                    context = "Note: This analysis was recovered from an incomplete AI response. Some data may be missing.",
+                    identifiedSentences = identifiedSentences
+                )
+            }
+            
+            return null
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Partial interactive reading parsing failed: ${e.message}")
+            return null
+        }
+    }
+    
+    /**
+     * Extract partial data for regular text analysis
+     */
+    private fun extractPartialTextData(content: String): TextAnalysis? {
+        try {
+            var originalText = ""
+            var translation = ""
+            val vocabulary = mutableListOf<VocabularyItem>()
+            val grammarPatterns = mutableListOf<GrammarPattern>()
+            
+            // Extract basic fields
+            val originalTextMatch = Regex("\"originalText\"\\s*:\\s*\"([^\"]+)\"").find(content)
+            originalTextMatch?.let { originalText = it.groupValues[1] }
+            
+            val translationMatch = Regex("\"translation\"\\s*:\\s*\"([^\"]+)\"").find(content)
+            translationMatch?.let { translation = it.groupValues[1] }
+            
+            // Extract vocabulary
+            val vocabPattern = Regex("\"word\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"reading\"\\s*:\\s*\"([^\"]*?)\"\\s*,\\s*\"meaning\"\\s*:\\s*\"([^\"]+)\"")
+            vocabPattern.findAll(content).forEach { match ->
+                vocabulary.add(VocabularyItem(
+                    word = match.groupValues[1],
+                    reading = match.groupValues[2],
+                    meaning = match.groupValues[3],
+                    partOfSpeech = ""
+                ))
+            }
+            
+            // Extract grammar patterns
+            val grammarPattern = Regex("\"pattern\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"explanation\"\\s*:\\s*\"([^\"]+)\"")
+            grammarPattern.findAll(content).forEach { match ->
+                grammarPatterns.add(GrammarPattern(
+                    pattern = match.groupValues[1],
+                    explanation = match.groupValues[2],
+                    example = "",
+                    difficulty = ""
+                ))
+            }
+            
+            if (originalText.isNotEmpty() || translation.isNotEmpty() || vocabulary.isNotEmpty()) {
+                Logger.i(Logger.Category.AI_SERVICE, "Partial text parsing successful - extracted ${vocabulary.size} vocab items, ${grammarPatterns.size} grammar patterns")
+                return TextAnalysis(
+                    originalText = originalText.ifEmpty { "Partial extraction from incomplete response" },
+                    translation = translation.ifEmpty { "Translation partially extracted" },
+                    vocabulary = vocabulary,
+                    grammarPatterns = grammarPatterns,
+                    context = "Note: This analysis was recovered from an incomplete AI response. Some data may be missing."
+                )
+            }
+            
+            return null
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Partial text parsing failed: ${e.message}")
+            return null
+        }
     }
 }

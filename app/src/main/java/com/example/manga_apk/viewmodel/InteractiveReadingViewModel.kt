@@ -216,7 +216,9 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                         height = 0.06f
                     ),
                     vocabulary = sentenceAnalysis.vocabulary,
-                    grammarPatterns = analysis.grammarPatterns
+                    grammarPatterns = analysis.grammarPatterns.filter { pattern ->
+                        sentenceAnalysis.originalSentence.contains(pattern.pattern)
+                    }
                 )
             }
         }
@@ -231,7 +233,9 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                     translation = analysis.translation,
                     position = TextPosition(0.3f, 0.3f, 0.4f, 0.1f),
                     vocabulary = analysis.vocabulary,
-                    grammarPatterns = analysis.grammarPatterns
+                    grammarPatterns = analysis.grammarPatterns.filter { pattern ->
+                        analysis.originalText.contains(pattern.pattern)
+                    }
                 )
             )
         }

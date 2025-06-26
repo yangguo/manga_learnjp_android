@@ -77,6 +77,7 @@ fun InteractiveReadingScreen(
     var showSentenceDialog by remember { mutableStateOf(false) }
     
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text("Interactive Reading") },
@@ -95,7 +96,7 @@ fun InteractiveReadingScreen(
     ) { paddingValues ->
         if (selectedImage != null) {
             // Show interactive reading interface when image is available
-            selectedImage?.let { image ->
+            selectedImage.let { image ->
                 EnhancedInteractiveView(
                     image = image,
                     identifiedSentences = uiState.identifiedSentences,

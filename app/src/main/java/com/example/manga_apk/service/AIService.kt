@@ -7,9 +7,11 @@ import com.example.manga_apk.data.AIProvider
 import com.example.manga_apk.data.CustomAPIConfig
 import com.example.manga_apk.data.GeminiConfig
 import com.example.manga_apk.data.GrammarPattern
+import com.example.manga_apk.data.IdentifiedSentence
 import com.example.manga_apk.data.OpenAIConfig
 import com.example.manga_apk.data.SentenceAnalysis
 import com.example.manga_apk.data.TextAnalysis
+import com.example.manga_apk.data.TextPosition
 import com.example.manga_apk.data.VocabularyItem
 import com.example.manga_apk.utils.Logger
 import com.google.gson.Gson
@@ -1393,12 +1395,116 @@ class AIService {
                 emptyList<GrammarPattern>()
             }
             
+            // Parse sentence analyses array safely
+            val sentenceAnalyses = try {
+                val sentenceArray = jsonObject.getAsJsonArray("sentenceAnalyses")
+                sentenceArray?.map { element ->
+                    val sentenceObj = element.asJsonObject
+                    val positionObj = sentenceObj.getAsJsonObject("position")
+                    val position = if (positionObj != null) {
+                        TextPosition(
+                            x = positionObj.get("x")?.asFloat ?: 0f,
+                            y = positionObj.get("y")?.asFloat ?: 0f,
+                            width = positionObj.get("width")?.asFloat ?: 0f,
+                            height = positionObj.get("height")?.asFloat ?: 0f
+                        )
+                    } else null
+                    
+                    // Parse vocabulary for this sentence
+                    val sentenceVocab = try {
+                        val vocabArray = sentenceObj.getAsJsonArray("vocabulary")
+                        vocabArray?.map { vocabElement ->
+                            val vocabObj = vocabElement.asJsonObject
+                            VocabularyItem(
+                                word = vocabObj.get("word")?.asString ?: "",
+                                reading = vocabObj.get("reading")?.asString ?: "",
+                                meaning = vocabObj.get("meaning")?.asString ?: "",
+                                partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: ""
+                            )
+                        } ?: emptyList()
+                    } catch (e: Exception) {
+                        emptyList<VocabularyItem>()
+                    }
+                    
+                    SentenceAnalysis(
+                        originalSentence = sentenceObj.get("originalSentence")?.asString ?: "",
+                        translation = sentenceObj.get("translation")?.asString ?: "",
+                        vocabulary = sentenceVocab,
+                        position = position
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse sentence analyses: ${e.message}")
+                emptyList<SentenceAnalysis>()
+            }
+            
+            // Parse identified sentences array safely
+            val identifiedSentences = try {
+                val identifiedArray = jsonObject.getAsJsonArray("identifiedSentences")
+                identifiedArray?.map { element ->
+                    val sentenceObj = element.asJsonObject
+                    val positionObj = sentenceObj.getAsJsonObject("position")
+                    val position = TextPosition(
+                        x = positionObj?.get("x")?.asFloat ?: 0f,
+                        y = positionObj?.get("y")?.asFloat ?: 0f,
+                        width = positionObj?.get("width")?.asFloat ?: 0f,
+                        height = positionObj?.get("height")?.asFloat ?: 0f
+                    )
+                    
+                    // Parse vocabulary for this identified sentence
+                    val sentenceVocab = try {
+                        val vocabArray = sentenceObj.getAsJsonArray("vocabulary")
+                        vocabArray?.map { vocabElement ->
+                            val vocabObj = vocabElement.asJsonObject
+                            VocabularyItem(
+                                word = vocabObj.get("word")?.asString ?: "",
+                                reading = vocabObj.get("reading")?.asString ?: "",
+                                meaning = vocabObj.get("meaning")?.asString ?: "",
+                                partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: ""
+                            )
+                        } ?: emptyList()
+                    } catch (e: Exception) {
+                        emptyList<VocabularyItem>()
+                    }
+                    
+                    // Parse grammar patterns for this identified sentence
+                    val sentenceGrammar = try {
+                        val grammarArray = sentenceObj.getAsJsonArray("grammarPatterns")
+                        grammarArray?.map { grammarElement ->
+                            val grammarObj = grammarElement.asJsonObject
+                            GrammarPattern(
+                                pattern = grammarObj.get("pattern")?.asString ?: "",
+                                explanation = grammarObj.get("explanation")?.asString ?: "",
+                                example = grammarObj.get("example")?.asString ?: "",
+                                difficulty = grammarObj.get("difficulty")?.asString ?: ""
+                            )
+                        } ?: emptyList()
+                    } catch (e: Exception) {
+                        emptyList<GrammarPattern>()
+                    }
+                    
+                    IdentifiedSentence(
+                        id = sentenceObj.get("id")?.asInt ?: 0,
+                        text = sentenceObj.get("text")?.asString ?: "",
+                        translation = sentenceObj.get("translation")?.asString ?: "",
+                        position = position,
+                        vocabulary = sentenceVocab,
+                        grammarPatterns = sentenceGrammar
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Failed to parse identified sentences: ${e.message}")
+                emptyList<IdentifiedSentence>()
+            }
+            
             TextAnalysis(
                 originalText = originalText,
                 translation = translation,
                 vocabulary = vocabulary,
                 grammarPatterns = grammarPatterns,
-                context = context
+                context = context,
+                sentenceAnalyses = sentenceAnalyses,
+                identifiedSentences = identifiedSentences
             )
         } catch (e: Exception) {
             Logger.w(Logger.Category.AI_SERVICE, "Failed to parse from JsonObject: ${e.message}")
@@ -2071,6 +2177,6 @@ class AIService {
         
         private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
         
-        private const val INTERACTIVE_READING_PROMPT = "Analyze this manga image for interactive reading. Identify ALL Japanese text elements and their precise locations. For each sentence or text element, provide: 1. The exact Japanese text 2. English translation 3. Position coordinates (x, y, width, height as percentages 0-1) 4. Vocabulary breakdown 5. Grammar patterns. Return JSON: { \"originalText\": \"combined text\", \"translation\": \"combined translation\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"type\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"level\" }], \"sentenceAnalyses\": [{ \"originalSentence\": \"sentence\", \"translation\": \"translation\", \"vocabulary\": [vocabulary_items], \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 } }], \"identifiedSentences\": [{ \"id\": 1, \"text\": \"sentence\", \"translation\": \"translation\", \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 }, \"vocabulary\": [vocabulary_items], \"grammarPatterns\": [grammar_patterns] }] }"
+        private const val INTERACTIVE_READING_PROMPT = "Analyze this manga image for interactive reading. CRITICAL: Identify EVERY SINGLE Japanese text element visible in the image, no matter how small or faint. This includes: speech bubbles, thought bubbles, sound effects (onomatopoeia), background text, signs, labels, narration boxes, and any other text. Scan the ENTIRE image systematically from top to bottom, left to right. For EACH individual text element found, provide: 1. The exact Japanese text 2. English translation 3. Precise position coordinates (x, y, width, height as percentages 0-1) 4. Vocabulary breakdown 5. Grammar patterns. IMPORTANT: Create separate entries for each distinct text element - do not combine multiple text elements into one. Return JSON: { \"originalText\": \"combined text\", \"translation\": \"combined translation\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"type\", \"difficulty\": 1-5 }], \"grammarPatterns\": [{ \"pattern\": \"pattern\", \"explanation\": \"explanation\", \"example\": \"example\", \"difficulty\": \"level\" }], \"sentenceAnalyses\": [{ \"originalSentence\": \"sentence\", \"translation\": \"translation\", \"vocabulary\": [vocabulary_items], \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 } }], \"identifiedSentences\": [{ \"id\": 1, \"text\": \"sentence\", \"translation\": \"translation\", \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 }, \"vocabulary\": [vocabulary_items], \"grammarPatterns\": [grammar_patterns] }] }"
     }
 }

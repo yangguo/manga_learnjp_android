@@ -1,5 +1,6 @@
 package com.example.manga_apk.ui
 
+import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +29,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import com.example.manga_apk.utils.Logger
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -102,8 +104,13 @@ fun InteractiveReadingScreen(
                     identifiedSentences = uiState.identifiedSentences,
                     isAnalyzing = uiState.isAnalyzing,
                     onSentenceTap = { sentence ->
-                        selectedSentence = sentence
-                        showSentenceDialog = true
+                        try {
+                            selectedSentence = sentence
+                            showSentenceDialog = true
+                        } catch (e: Exception) {
+                            Logger.logError("InteractiveReadingScreen", "Error handling sentence tap: ${e.message}")
+                            // Optionally show a toast or error message to user
+                        }
                     },
                     onRetryAnalysis = { viewModel.retryAnalysis() },
                     modifier = Modifier
@@ -250,6 +257,93 @@ fun InteractiveReadingScreen(
     }
 }
 
+@Composable
+fun InteractiveVocabularyCard(
+    vocabulary: VocabularyItem,
+    onWordClick: (VocabularyItem) -> Unit = {}
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = vocabulary.word,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (vocabulary.reading.isNotEmpty() && vocabulary.reading != vocabulary.word) {
+                        Text(
+                            text = vocabulary.reading,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                Text(
+                    text = vocabulary.meaning,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (vocabulary.partOfSpeech.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Part of speech: ${vocabulary.partOfSpeech}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun InteractiveGrammarPatternCard(pattern: GrammarPattern) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Text(
+                text = pattern.pattern ?: "Unknown pattern",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            if (!pattern.explanation.isNullOrEmpty()) {
+                Text(
+                    text = pattern.explanation,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (!pattern.example.isNullOrEmpty() && pattern.example != pattern.pattern) {
+                Text(
+                    text = "Example: ${pattern.example}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
 
 
 @Composable
@@ -303,7 +397,13 @@ fun EnhancedInteractiveView(
                             Color.White,
                             CircleShape
                         )
-                        .clickable { onSentenceTap(sentence) }
+                        .clickable { 
+                            try {
+                                onSentenceTap(sentence)
+                            } catch (e: Exception) {
+                                Logger.logError("EnhancedInteractiveView", "Error in marker click: ${e.message}")
+                            }
+                        }
                         .zIndex(1f),
                     contentAlignment = Alignment.Center
                 ) {
@@ -364,6 +464,7 @@ fun EnhancedInteractiveView(
             }
         }
     }
+
 }
 
 @Composable
@@ -372,10 +473,10 @@ fun SentenceAnalysisDialog(
     onDismiss: () -> Unit
 ) {
     // Validate content before rendering
-    val hasText = sentence.text.isNotEmpty()
-    val hasTranslation = sentence.translation.isNotEmpty()
-    val hasVocabulary = sentence.vocabulary.isNotEmpty()
-    val hasGrammar = sentence.grammarPatterns.isNotEmpty()
+    val hasText = sentence.text?.isNotEmpty() ?: false
+    val hasTranslation = sentence.translation?.isNotEmpty() ?: false
+    val hasVocabulary = sentence.vocabulary?.isNotEmpty() ?: false
+    val hasGrammar = sentence.grammarPatterns?.isNotEmpty() ?: false
     
     if (!hasText && !hasTranslation) {
         // Show error dialog for completely empty content
@@ -530,12 +631,12 @@ fun SentenceAnalysisDialog(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(sentence.vocabulary) { vocab ->
-                                    VocabularyCard(vocab = vocab)
+                                    InteractiveVocabularyCard(vocabulary = vocab, onWordClick = {})
                                 }
                             }
                         } else {
                             sentence.vocabulary.forEach { vocab ->
-                                VocabularyCard(vocab = vocab)
+                                InteractiveVocabularyCard(vocabulary = vocab, onWordClick = {})
                             }
                         }
                     } else {
@@ -575,12 +676,12 @@ fun SentenceAnalysisDialog(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(sentence.grammarPatterns) { pattern ->
-                                    GrammarPatternCard(pattern = pattern)
+                                    InteractiveGrammarPatternCard(pattern = pattern)
                                 }
                             }
                         } else {
                             sentence.grammarPatterns.forEach { pattern ->
-                                GrammarPatternCard(pattern = pattern)
+                                InteractiveGrammarPatternCard(pattern = pattern)
                             }
                         }
                     } else {
@@ -612,90 +713,9 @@ fun SentenceAnalysisDialog(
     }
 }
 
-@Composable
-fun VocabularyCard(vocab: VocabularyItem) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = vocab.word,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                    if (vocab.reading.isNotEmpty() && vocab.reading != vocab.word) {
-                        Text(
-                            text = vocab.reading,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-                Text(
-                    text = vocab.meaning,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            if (vocab.partOfSpeech.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Part of speech: ${vocab.partOfSpeech}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f)
-                )
-            }
-        }
-    }
-}
 
-@Composable 
-fun GrammarPatternCard(pattern: GrammarPattern) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Text(
-                text = pattern.pattern,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
-            if (pattern.explanation.isNotEmpty()) {
-                Text(
-                    text = pattern.explanation,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-            if (pattern.example.isNotEmpty() && pattern.example != pattern.pattern) {
-                Text(
-                    text = "Example: ${pattern.example}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-    }
-}
+
+
 
 @Composable
 fun SimpleErrorDialog(

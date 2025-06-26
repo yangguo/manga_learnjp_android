@@ -616,8 +616,12 @@ class AIService {
         
         println("AIService: Using custom API model: '$modelToUse'")
         println("AIService: Custom API endpoint: '${config.endpoint}'")
+        println("AIService: Custom API endpoint length: ${config.endpoint.length}")
+        println("AIService: Custom API endpoint bytes: ${config.endpoint.toByteArray().joinToString(",") { it.toString() }}")
         println("AIService: Custom API key length: ${config.apiKey.length}")
         android.util.Log.d("MangaLearnJP", "AIService: Custom API - Endpoint: '${config.endpoint}', Model: '$modelToUse', Key length: ${config.apiKey.length}")
+        android.util.Log.d("MangaLearnJP", "AIService: Custom API endpoint length: ${config.endpoint.length}")
+        android.util.Log.d("MangaLearnJP", "AIService: Custom API endpoint bytes: ${config.endpoint.toByteArray().joinToString(",") { it.toString() }}")
         
         // Validate model
         if (modelToUse.isEmpty()) {
@@ -658,7 +662,11 @@ class AIService {
         }
         
         println("AIService: Final endpoint URL: '$finalEndpoint'")
+        println("AIService: Final endpoint URL length: ${finalEndpoint.length}")
+        println("AIService: Final endpoint URL bytes: ${finalEndpoint.toByteArray().joinToString(",") { it.toString() }}")
         android.util.Log.d("MangaLearnJP", "AIService: Final endpoint URL: '$finalEndpoint'")
+        android.util.Log.d("MangaLearnJP", "AIService: Final endpoint URL length: ${finalEndpoint.length}")
+        android.util.Log.d("MangaLearnJP", "AIService: Final endpoint URL bytes: ${finalEndpoint.toByteArray().joinToString(",") { it.toString() }}")
         
         // Validate API key
         if (config.apiKey.trim().isEmpty()) {
@@ -1444,12 +1452,16 @@ class AIService {
                 identifiedArray?.map { element ->
                     val sentenceObj = element.asJsonObject
                     val positionObj = sentenceObj.getAsJsonObject("position")
-                    val position = TextPosition(
-                        x = positionObj?.get("x")?.asFloat ?: 0f,
-                        y = positionObj?.get("y")?.asFloat ?: 0f,
-                        width = positionObj?.get("width")?.asFloat ?: 0f,
-                        height = positionObj?.get("height")?.asFloat ?: 0f
-                    )
+                    val position = if (positionObj != null) {
+                        TextPosition(
+                            x = positionObj.get("x")?.asFloat ?: 0f,
+                            y = positionObj.get("y")?.asFloat ?: 0f,
+                            width = positionObj.get("width")?.asFloat ?: 0f,
+                            height = positionObj.get("height")?.asFloat ?: 0f
+                        )
+                    } else {
+                        TextPosition(0f, 0f, 0f, 0f)
+                    }
                     
                     // Parse vocabulary for this identified sentence
                     val sentenceVocab = try {

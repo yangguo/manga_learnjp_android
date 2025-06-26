@@ -13,10 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +39,7 @@ import com.example.manga_apk.data.VocabularyItem
 import com.example.manga_apk.data.GrammarPattern
 import com.example.manga_apk.data.TextAnalysis
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -239,7 +241,10 @@ fun InteractiveReadingScreen(
     if (showSentenceDialog && selectedSentence != null) {
         SentenceAnalysisDialog(
             sentence = selectedSentence!!,
-            onDismiss = { showSentenceDialog = false }
+            onDismiss = { 
+                showSentenceDialog = false
+                selectedSentence = null  // Clear selection on dismiss
+            }
         )
     }
 }
@@ -365,22 +370,39 @@ fun SentenceAnalysisDialog(
     sentence: IdentifiedSentence,
     onDismiss: () -> Unit
 ) {
+    // Validate content before rendering
+    val hasText = sentence.text.isNotEmpty()
+    val hasTranslation = sentence.translation.isNotEmpty()
+    val hasVocabulary = sentence.vocabulary.isNotEmpty()
+    val hasGrammar = sentence.grammarPatterns.isNotEmpty()
+    
+    if (!hasText && !hasTranslation) {
+        // Show error dialog for completely empty content
+        SimpleErrorDialog(
+            title = "No Content Available",
+            message = "This sentence contains no text or translation data.",
+            onDismiss = onDismiss
+        )
+        return
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .fillMaxWidth(0.95f)  // Responsive width
+                .fillMaxHeight(0.9f)  // Prevent overflow on small screens
+                .padding(8.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxSize()
             ) {
-                // Header
+                // Header with close button
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -391,7 +413,7 @@ fun SentenceAnalysisDialog(
                     )
                     Row {
                         IconButton(onClick = { /* TODO: Add TTS */ }) {
-                            Icon(Icons.Default.VolumeUp, contentDescription = "Play audio")
+                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Play audio")
                         }
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
@@ -399,147 +421,307 @@ fun SentenceAnalysisDialog(
                     }
                 }
                 
-                Divider()
+                HorizontalDivider()
                 
-                // Japanese Text
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
+                // Scrollable content
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Japanese Text",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = sentence.text,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontSize = 18.sp
-                        )
-                    }
-                }
-                
-                // Translation
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Translation",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = sentence.translation,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-                
-                // Vocabulary
-                if (sentence.vocabulary.isNotEmpty()) {
-                    Text(
-                        text = "Vocabulary",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     
-                    sentence.vocabulary.forEach { vocab ->
+                    // Japanese Text
+                    if (hasText) {
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
                             )
                         ) {
                             Column(
-                                modifier = Modifier.padding(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = vocab.word,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        if (vocab.reading.isNotEmpty()) {
-                                            Text(
-                                                text = vocab.reading,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = vocab.meaning,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                if (vocab.partOfSpeech.isNotEmpty()) {
-                                    Text(
-                                        text = "Part of speech: ${vocab.partOfSpeech}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f),
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Grammar Patterns
-                if (sentence.grammarPatterns.isNotEmpty()) {
-                    Text(
-                        text = "Grammar Patterns",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    sentence.grammarPatterns.forEach { pattern ->
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp)
+                                modifier = Modifier.padding(16.dp)
                             ) {
                                 Text(
-                                    text = pattern.pattern,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "Japanese Text",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Medium
                                 )
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = pattern.explanation,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp)
+                                    text = sentence.text,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontSize = 18.sp,
+                                    lineHeight = 24.sp
                                 )
                             }
                         }
                     }
+                    
+                    // Translation
+                    if (hasTranslation) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Translation",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = sentence.translation,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    lineHeight = 22.sp
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Content quality indicator
+                    if (!hasText || !hasTranslation || !hasVocabulary) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Some analysis data may be incomplete due to AI response limitations.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Vocabulary with height constraint
+                    if (hasVocabulary) {
+                        Text(
+                            text = "Vocabulary (${sentence.vocabulary.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        // Use LazyColumn if many vocabulary items
+                        if (sentence.vocabulary.size > 3) {
+                            LazyColumn(
+                                modifier = Modifier.heightIn(max = 200.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(sentence.vocabulary) { vocab ->
+                                    VocabularyCard(vocab = vocab)
+                                }
+                            }
+                        } else {
+                            sentence.vocabulary.forEach { vocab ->
+                                VocabularyCard(vocab = vocab)
+                            }
+                        }
+                    } else {
+                        // Show placeholder for missing vocabulary
+                        Text(
+                            text = "Vocabulary",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text(
+                                text = "No vocabulary data available for this sentence.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                    
+                    // Grammar Patterns with height constraint
+                    if (hasGrammar) {
+                        Text(
+                            text = "Grammar Patterns (${sentence.grammarPatterns.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        if (sentence.grammarPatterns.size > 3) {
+                            LazyColumn(
+                                modifier = Modifier.heightIn(max = 200.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(sentence.grammarPatterns) { pattern ->
+                                    GrammarPatternCard(pattern = pattern)
+                                }
+                            }
+                        } else {
+                            sentence.grammarPatterns.forEach { pattern ->
+                                GrammarPatternCard(pattern = pattern)
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "Grammar Patterns",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text(
+                                text = "No grammar patterns identified for this sentence.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                    
+                    // Bottom padding for scrolling
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
     }
+}
+
+@Composable
+fun VocabularyCard(vocab: VocabularyItem) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = vocab.word,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (vocab.reading.isNotEmpty() && vocab.reading != vocab.word) {
+                        Text(
+                            text = vocab.reading,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                Text(
+                    text = vocab.meaning,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (vocab.partOfSpeech.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Part of speech: ${vocab.partOfSpeech}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+@Composable 
+fun GrammarPatternCard(pattern: GrammarPattern) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Text(
+                text = pattern.pattern,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            if (pattern.explanation.isNotEmpty()) {
+                Text(
+                    text = pattern.explanation,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (pattern.example.isNotEmpty() && pattern.example != pattern.pattern) {
+                Text(
+                    text = "Example: ${pattern.example}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SimpleErrorDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
+            }
+        }
+    )
 }
 
 // Function to generate identified sentences directly from image using LLM analysis

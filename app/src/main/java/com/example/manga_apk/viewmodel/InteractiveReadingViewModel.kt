@@ -126,9 +126,15 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 
                 // Use the existing AIService with a specialized prompt for interactive reading
                 // Use wake lock to prevent network failures during screen protection
+                println("InteractiveReadingViewModel: About to acquire wake lock for analysis")
+                android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: About to acquire wake lock for analysis")
                 val result = wakeLockManager.withWakeLock {
+                    println("InteractiveReadingViewModel: Wake lock acquired, starting AI analysis")
+                    android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: Wake lock acquired, starting AI analysis")
                     aiService.analyzeImageForInteractiveReading(bitmap, currentConfig)
                 }
+                println("InteractiveReadingViewModel: Wake lock released, analysis completed")
+                android.util.Log.d("MangaLearnJP", "InteractiveReadingViewModel: Wake lock released, analysis completed")
                 
                 if (result.isSuccess) {
                     val textAnalysis = result.getOrThrow()

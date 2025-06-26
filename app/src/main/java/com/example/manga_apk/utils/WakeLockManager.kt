@@ -1,6 +1,7 @@
 package com.example.manga_apk.utils
 
 import android.content.Context
+import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 
@@ -20,7 +21,8 @@ class WakeLockManager(private val context: Context) {
     
     /**
      * Acquires a partial wake lock to keep the CPU running during AI analysis.
-     * This prevents the device from going into deep sleep which can cause network failures.
+     * This prevents the device from going into deep sleep which can cause network failures
+     * for both WiFi and mobile data connections.
      */
     fun acquireWakeLock() {
         try {
@@ -29,10 +31,10 @@ class WakeLockManager(private val context: Context) {
                     PowerManager.PARTIAL_WAKE_LOCK,
                     WAKE_LOCK_TAG
                 ).apply {
-                    // Set timeout to 10 minutes as a safety measure
-                    acquire(10 * 60 * 1000L)
+                    // Set timeout to 15 minutes as a safety measure for longer AI operations
+                    acquire(15 * 60 * 1000L)
                 }
-                Log.d(TAG, "Wake lock acquired for AI analysis")
+                Log.d(TAG, "Wake lock acquired for AI analysis (works for WiFi and mobile data)")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to acquire wake lock: ${e.message}", e)
@@ -57,7 +59,8 @@ class WakeLockManager(private val context: Context) {
     }
     
     /**
-     * Checks if the wake lock is currently held
+     * Checks if the wake lock is currently held.
+     * @return true if the lock is held, false otherwise
      */
     fun isWakeLockHeld(): Boolean {
         return wakeLock?.isHeld == true
@@ -67,10 +70,16 @@ class WakeLockManager(private val context: Context) {
      * Executes a block of code while holding a wake lock
      */
     suspend fun <T> withWakeLock(block: suspend () -> T): T {
+        println("WakeLockManager: withWakeLock called, acquiring wake lock")
+        android.util.Log.d("MangaLearnJP", "WakeLockManager: withWakeLock called, acquiring wake lock")
         acquireWakeLock()
         return try {
+            println("WakeLockManager: Wake lock acquired, executing block")
+            android.util.Log.d("MangaLearnJP", "WakeLockManager: Wake lock acquired, executing block")
             block()
         } finally {
+            println("WakeLockManager: Block completed, releasing wake lock")
+            android.util.Log.d("MangaLearnJP", "WakeLockManager: Block completed, releasing wake lock")
             releaseWakeLock()
         }
     }

@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.example.manga_apk.utils.Logger
+import com.example.manga_apk.utils.WakeLockManager
 import androidx.lifecycle.viewModelScope
 import com.example.manga_apk.data.*
 import com.example.manga_apk.service.AIService
@@ -46,6 +47,7 @@ data class MangaAnalysisUiState(
 class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
     
     private val preferencesRepository = PreferencesRepository(context)
+    private val wakeLockManager = WakeLockManager(context)
     private val _uiState = MutableStateFlow(MangaAnalysisUiState())
     
     val uiState: StateFlow<MangaAnalysisUiState> = combine(
@@ -149,7 +151,10 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                     panel.height
                 )
                 
-                val result = aiService.analyzeImage(panelBitmap, _uiState.value.aiConfig)
+                // Use wake lock to prevent network failures during screen protection
+                val result = wakeLockManager.withWakeLock {
+                    aiService.analyzeImage(panelBitmap, _uiState.value.aiConfig)
+                }
                 
                 result.fold(
                     onSuccess = { analysis ->
@@ -393,7 +398,11 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
             
             try {
                 Logger.logAIServiceCall(currentConfig.primaryProvider.toString(), "analyzeImage")
-                val result = aiService.analyzeImage(bitmap, currentConfig)
+                
+                // Use wake lock to prevent network failures during screen protection
+                val result = wakeLockManager.withWakeLock {
+                    aiService.analyzeImage(bitmap, currentConfig)
+                }
                 
                 result.fold(
                     onSuccess = { analysis ->
@@ -435,6 +444,12 @@ class MangaAnalysisViewModel(private val context: Context) : ViewModel() {
                 Logger.logFunctionExit("MangaAnalysisViewModel", "analyzeFullImage")
             }
         }
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        // Ensure wake lock is released when ViewModel is destroyed
+        wakeLockManager.releaseWakeLock()
     }
     
     fun analyzeWord(word: String) {

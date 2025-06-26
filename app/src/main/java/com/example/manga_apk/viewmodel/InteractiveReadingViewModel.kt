@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.manga_apk.data.*
 import com.example.manga_apk.service.AIService
 import com.example.manga_apk.utils.Logger
+import com.example.manga_apk.utils.WakeLockManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,7 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
     
     private val aiService = AIService()
     private val preferencesRepository = PreferencesRepository(context)
+    private val wakeLockManager = WakeLockManager(context)
     
     init {
         // Load AI configuration on initialization
@@ -123,7 +125,10 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 }
                 
                 // Use the existing AIService with a specialized prompt for interactive reading
-                val result = aiService.analyzeImageForInteractiveReading(bitmap, currentConfig)
+                // Use wake lock to prevent network failures during screen protection
+                val result = wakeLockManager.withWakeLock {
+                    aiService.analyzeImageForInteractiveReading(bitmap, currentConfig)
+                }
                 
                 if (result.isSuccess) {
                     val textAnalysis = result.getOrThrow()
@@ -362,5 +367,11 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                 append("2. 🔄 Try retrying the analysis\n")
             }
         }
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        // Ensure wake lock is released when ViewModel is destroyed
+        wakeLockManager.releaseWakeLock()
     }
 }

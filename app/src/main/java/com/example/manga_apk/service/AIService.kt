@@ -1586,13 +1586,9 @@ class AIService {
                 emptyList<IdentifiedSentence>()
             }
             
-            // Post-process: Split combined sentences if AI returned too few sentences
-            val processedSentences = if (identifiedSentences.size == 1 && identifiedSentences[0].text.length > 50) {
-                Logger.i(Logger.Category.AI_SERVICE, "Detected potentially combined sentence, attempting to split")
-                splitCombinedSentence(identifiedSentences[0], vocabulary, grammarPatterns)
-            } else {
-                identifiedSentences
-            }
+            // Trust the AI's spatial detection - no post-processing sentence splitting
+            val processedSentences = identifiedSentences
+            Logger.i(Logger.Category.AI_SERVICE, "Using AI-detected sentences without post-processing: ${processedSentences.size} sentences")
             
             TextAnalysis(
                 originalText = originalText,
@@ -2275,33 +2271,38 @@ class AIService {
         private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
         
         private val INTERACTIVE_READING_PROMPT = """
-Analyze this manga image and identify ALL Japanese text elements. CRITICALLY IMPORTANT: Split text into individual sentences or phrases - DO NOT combine multiple sentences into one.
+Analyze this manga image and detect ALL individual text elements with their EXACT spatial locations. 
 
-**Text Segmentation Rules:**
-1) Each speech bubble = separate sentences
-2) Each text block = separate entries  
-3) Split on punctuation: 。！？etc.
-4) Split on natural phrase boundaries
-5) Each sentence gets its own analysis
+**CRITICAL SPATIAL DETECTION RULES:**
+1) Locate EACH speech bubble, text box, and sound effect separately
+2) Measure EXACT position coordinates for each text element
+3) Each text element = one entry with its own bounding box
+4) DO NOT combine multiple text elements into one
+5) DO NOT split single text elements artificially
 
-**For EACH separate sentence/phrase:**
-1) Japanese text (one sentence only)
-2) English translation
-3) Position coordinates (x,y,width,height as 0-1 percentages)
-4) Complete vocabulary breakdown 
-5) Grammar patterns present
+**For EACH individual text element found:**
+1) Extract the complete Japanese text from that specific location
+2) Provide accurate bounding box coordinates (x, y, width, height as 0-1 percentages)
+3) Translate that specific text element
+4) Analyze vocabulary and grammar for that element only
 
-**JSON Structure (MUST show multiple sentences):**
+**Coordinate Guidelines:**
+- x, y: Top-left corner of the text element (0.0 = left/top edge, 1.0 = right/bottom edge)
+- width, height: Size of the text element relative to image dimensions
+- Be precise - each text element should have its actual measured position
+
+**JSON Structure:**
 {
-  "originalText": "combined_all_text",
-  "translation": "combined_translation", 
-  "vocabulary": [{"word": "word", "reading": "reading", "meaning": "meaning", "partOfSpeech": "type"}],
+  "originalText": "all_detected_text_combined",
+  "translation": "combined_translation_of_all_elements", 
+  "vocabulary": [{"word": "word", "reading": "reading", "meaning": "meaning", "partOfSpeech": "type", "jlptLevel": "N1-N5", "difficulty": 1-5}],
+  "grammarPatterns": [{"pattern": "pattern", "explanation": "explanation", "example": "example", "difficulty": "beginner/intermediate/advanced"}],
   "identifiedSentences": [
     {
       "id": 1,
       "text": "やあ",
       "translation": "Hey",
-      "position": {"x": 0.2, "y": 0.1, "width": 0.15, "height": 0.05},
+      "position": {"x": 0.15, "y": 0.08, "width": 0.12, "height": 0.04},
       "vocabulary": [{"word": "やあ", "reading": "やあ", "meaning": "hey", "partOfSpeech": "interjection", "jlptLevel": "N5", "difficulty": 1}],
       "grammarPatterns": [{"pattern": "やあ", "explanation": "Casual greeting", "example": "やあ、元気？", "difficulty": "beginner"}]
     },
@@ -2309,25 +2310,26 @@ Analyze this manga image and identify ALL Japanese text elements. CRITICALLY IMP
       "id": 2, 
       "text": "だあつっ！！",
       "translation": "There!",
-      "position": {"x": 0.4, "y": 0.3, "width": 0.2, "height": 0.06},
+      "position": {"x": 0.42, "y": 0.28, "width": 0.18, "height": 0.06},
       "vocabulary": [{"word": "だあつっ", "reading": "だあつっ", "meaning": "there/that", "partOfSpeech": "exclamation", "jlptLevel": "N4", "difficulty": 2}],
       "grammarPatterns": [{"pattern": "exclamation + っ！！", "explanation": "Emphatic exclamation", "example": "やったっ！！", "difficulty": "beginner"}]
     },
     {
       "id": 3,
-      "text": "アーニャべんきょうしょだっ！！",
+      "text": "アーニャべんきょうするだっ！！",
       "translation": "Anya will study!",
-      "position": {"x": 0.1, "y": 0.5, "width": 0.3, "height": 0.08},
+      "position": {"x": 0.08, "y": 0.52, "width": 0.35, "height": 0.08},
       "vocabulary": [
         {"word": "アーニャ", "reading": "アーニャ", "meaning": "Anya (name)", "partOfSpeech": "noun", "jlptLevel": "N5", "difficulty": 1},
-        {"word": "べんきょう", "reading": "べんきょう", "meaning": "study", "partOfSpeech": "noun", "jlptLevel": "N5", "difficulty": 1}
+        {"word": "べんきょう", "reading": "べんきょう", "meaning": "study", "partOfSpeech": "noun", "jlptLevel": "N5", "difficulty": 1},
+        {"word": "する", "reading": "する", "meaning": "to do", "partOfSpeech": "verb", "jlptLevel": "N5", "difficulty": 1}
       ],
-      "grammarPatterns": [{"pattern": "Noun + する", "explanation": "Verb formation", "example": "勉強する", "difficulty": "beginner"}]
+      "grammarPatterns": [{"pattern": "Noun + する", "explanation": "Verb formation with する", "example": "勉強する", "difficulty": "beginner"}]
     }
   ]
 }
 
-**CRITICAL:** Return MULTIPLE sentences in identifiedSentences array. Each speech bubble and text element should be separate entries. DO NOT put all text into one sentence.
+**ESSENTIAL:** Each entry in identifiedSentences represents ONE text element found at ONE specific location. Use the AI's visual detection capabilities to identify actual text positions - do not guess or split arbitrarily.
 """.trimIndent()
     }
     
@@ -2774,91 +2776,15 @@ Analyze this manga image and identify ALL Japanese text elements. CRITICALLY IMP
     /**
      * Split a combined sentence into multiple sentences based on Japanese punctuation and patterns
      */
-    private fun splitCombinedSentence(
-        combinedSentence: IdentifiedSentence,
-        globalVocabulary: List<VocabularyItem>,
-        globalGrammar: List<GrammarPattern>
-    ): List<IdentifiedSentence> {
-        val text = combinedSentence.text
-        Logger.i(Logger.Category.AI_SERVICE, "Splitting combined sentence of length ${text.length}: ${text.take(50)}...")
-        
-        // Japanese sentence delimiters
-        val sentenceDelimiters = listOf("。", "！", "？", "!!", "!?", "?!", "っ!!", "だっ!!")
-        
-        // Split on major delimiters while preserving them
-        val segments = mutableListOf<String>()
-        var currentSegment = ""
-        var i = 0
-        
-        while (i < text.length) {
-            val char = text[i]
-            currentSegment += char
-            
-            // Check for multi-character delimiters first
-            var foundDelimiter = false
-            for (delimiter in sentenceDelimiters.sortedByDescending { it.length }) {
-                if (i + delimiter.length <= text.length && 
-                    text.substring(i + 1 - delimiter.length, i + 1) == delimiter) {
-                    segments.add(currentSegment.trim())
-                    currentSegment = ""
-                    foundDelimiter = true
-                    break
-                }
-            }
-            
-            // Also split on likely speech bubble boundaries (repeated characters)
-            if (!foundDelimiter && i < text.length - 1) {
-                val nextChar = text[i + 1]
-                if ((char == 'っ' && nextChar != 'っ') || 
-                    (char == '！' && nextChar != '！') ||
-                    (char in listOf('。', '？') && nextChar != char)) {
-                    // Natural break point
-                }
-            }
-            
-            i++
-        }
-        
-        // Add remaining segment
-        if (currentSegment.trim().isNotEmpty()) {
-            segments.add(currentSegment.trim())
-        }
-        
-        // Filter out very short segments and clean up
-        val meaningfulSegments = segments.filter { it.length >= 2 && it.any { char -> char.isLetterOrDigit() } }
-        
-        Logger.i(Logger.Category.AI_SERVICE, "Split into ${meaningfulSegments.size} segments: ${meaningfulSegments.map { it.take(20) }}")
-        
-        if (meaningfulSegments.size <= 1) {
-            return listOf(combinedSentence) // Couldn't split effectively
-        }
-        
-        // Create new IdentifiedSentence objects for each segment
-        return meaningfulSegments.mapIndexed { index, segment ->
-            val basePosition = combinedSentence.position
-            val adjustedPosition = TextPosition(
-                x = basePosition.x,
-                y = basePosition.y + (index * 0.08f), // Stack vertically
-                width = basePosition.width,
-                height = basePosition.height * 0.8f // Make each segment slightly smaller
-            )
-            
-            // Distribute vocabulary items based on segment content
-            val segmentVocab = globalVocabulary.filter { vocab ->
-                segment.contains(vocab.word)
-            }.take(3) // Limit per segment
-            
-            // Distribute grammar patterns 
-            val segmentGrammar = globalGrammar.take(2) // Share some grammar patterns
-            
-            IdentifiedSentence(
-                id = combinedSentence.id + index,
-                text = segment,
-                translation = "Translation for: $segment", // Simple fallback
-                position = adjustedPosition,
-                vocabulary = segmentVocab,
-                grammarPatterns = segmentGrammar
-            )
-        }
-    }
+    /**
+     * Generate a translation for a split segment based on content analysis
+     */
+    // Removed generateSegmentTranslation method - no longer needed after removing sentence splitting
+    
+    /**
+     * Determines if a sentence should be split based on multiple criteria
+     */
+    // Removed shouldSplitSentence method - now trusting AI's spatial detection
+    
+    // Removed splitCombinedSentence method - now trusting AI's spatial detection instead of post-processing
 }

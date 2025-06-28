@@ -752,60 +752,11 @@ fun SimpleErrorDialog(
 fun generateSentencesFromImage(image: android.graphics.Bitmap?): List<IdentifiedSentence> {
     if (image == null) return emptyList()
     
-    // Return demo sentences for now
-    // In a proper implementation, this data should come from:
-    // 1. ViewModel calling AIService.analyzeImage() with interactive reading prompt
-    // 2. Parsing the LLM response to extract sentences with positions
-    // 3. Converting to IdentifiedSentence objects
+    // This function is deprecated and should not be used for demo content
+    // Actual sentence analysis is handled by the ViewModel through AIService
+    // which calls analyzeImageForInteractiveReading()
     
-    return listOf(
-        IdentifiedSentence(
-            id = 1,
-            text = "もういい出かけてくる",
-            translation = "Enough, I'm going out.",
-            position = TextPosition(0.3f, 0.2f, 0.2f, 0.05f),
-            vocabulary = listOf(
-                VocabularyItem(
-                    word = "出かける",
-                    reading = "でかける",
-                    meaning = "to go out",
-                    partOfSpeech = "verb",
-                    difficulty = 2
-                )
-            ),
-            grammarPatterns = listOf(
-                GrammarPattern(
-                    pattern = "〜てくる",
-                    explanation = "Te-form + kuru indicates going out and doing something",
-                    example = "出かけてくる",
-                    difficulty = "intermediate"
-                )
-            )
-        ),
-        IdentifiedSentence(
-            id = 2,
-            text = "留守番してろ！",
-            translation = "Stay home and watch the house!",
-            position = TextPosition(0.6f, 0.4f, 0.25f, 0.06f),
-            vocabulary = listOf(
-                VocabularyItem(
-                    word = "留守番",
-                    reading = "るすばん",
-                    meaning = "house-sitting",
-                    partOfSpeech = "noun",
-                    difficulty = 3
-                )
-            ),
-            grammarPatterns = listOf(
-                GrammarPattern(
-                    pattern = "〜してろ",
-                    explanation = "Imperative form commanding someone to do something",
-                    example = "留守番してろ",
-                    difficulty = "intermediate"
-                )
-            )
-        )
-    )
+    return emptyList()
 }
 
 @Composable

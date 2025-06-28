@@ -140,18 +140,17 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                     val textAnalysis = result.getOrThrow()
                     val sentences = parseInteractiveReadingResponse(textAnalysis)
                     
-                    // If no sentences were identified, provide helpful feedback and demo content
+                    // If no sentences were identified, show error without demo content
                     if (sentences.isEmpty()) {
-                        Logger.w(Logger.Category.VIEWMODEL, "No sentences identified from AI analysis, providing demo content")
-                        val demoSentences = generateDemoSentences()
+                        Logger.w(Logger.Category.VIEWMODEL, "No sentences identified from AI analysis")
                         _uiState.value = _uiState.value.copy(
-                            identifiedSentences = demoSentences,
+                            identifiedSentences = emptyList(),
                             isAnalyzing = false,
                             error = "No Japanese text was identified in the image. This could be due to:\n" +
                                     "• Image quality issues (too blurry, low resolution)\n" +
                                     "• No Japanese text visible in the image\n" +
                                     "• AI provider limitations\n\n" +
-                                    "Showing demo content for reference. Try uploading a clearer manga image with visible Japanese text."
+                                    "Please try uploading a clearer manga image with visible Japanese text."
                         )
                     } else {
                         _uiState.value = _uiState.value.copy(
@@ -164,30 +163,24 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                     
                     Logger.logFunctionExit("InteractiveReadingViewModel", "analyzeImageForInteractiveReading")
                 } else {
-                    // Handle analysis failure with fallback to demo sentences
+                    // Handle analysis failure without demo content
                     val exception = result.exceptionOrNull() ?: Exception("Analysis failed")
                     Logger.logError("analyzeImageForInteractiveReading", exception)
                     
-                    // Fall back to demo sentences if analysis fails
-                    val demoSentences = generateDemoSentences()
-                    
                     _uiState.value = _uiState.value.copy(
-                        identifiedSentences = demoSentences,
+                        identifiedSentences = emptyList(),
                         isAnalyzing = false,
-                        error = "LLM analysis failed, showing demo content: ${exception.message}"
+                        error = "Analysis failed: ${exception.message}"
                     )
                 }
                 
             } catch (e: Exception) {
                 Logger.logError("analyzeImageForInteractiveReading", e)
                 
-                // Fall back to demo sentences if analysis fails
-                val demoSentences = generateDemoSentences()
-                
                 _uiState.value = _uiState.value.copy(
-                    identifiedSentences = demoSentences,
+                    identifiedSentences = emptyList(),
                     isAnalyzing = false,
-                    error = "LLM analysis failed, showing demo content: ${e.message}"
+                    error = "Analysis failed: ${e.message}"
                 )
             }
         }
@@ -198,7 +191,35 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         // If the analysis contains identifiedSentences, use those
         if (analysis.identifiedSentences.isNotEmpty()) {
             Logger.i(Logger.Category.VIEWMODEL, "Using ${analysis.identifiedSentences.size} pre-parsed identified sentences")
-            return analysis.identifiedSentences
+            
+            // Enrich sentences that have missing vocabulary/grammar with global analysis
+            return analysis.identifiedSentences.map { sentence ->
+                val enrichedVocabulary = if (sentence.vocabulary.isEmpty() && analysis.vocabulary.isNotEmpty()) {
+                    // Extract relevant vocabulary from global analysis
+                    analysis.vocabulary.filter { vocab ->
+                        sentence.text.contains(vocab.word)
+                    }.take(5)
+                } else {
+                    sentence.vocabulary
+                }
+                
+                val enrichedGrammar = if (sentence.grammarPatterns.isEmpty() && analysis.grammarPatterns.isNotEmpty()) {
+                    // Extract relevant grammar patterns from global analysis
+                    analysis.grammarPatterns.filter { pattern ->
+                        sentence.text.contains(pattern.pattern) ||
+                        pattern.example.contains(sentence.text) ||
+                        // Check for hiragana patterns in text
+                        sentence.text.matches(Regex(".*${Regex.escape(pattern.pattern)}.*"))
+                    }.take(3)
+                } else {
+                    sentence.grammarPatterns
+                }
+                
+                sentence.copy(
+                    vocabulary = enrichedVocabulary,
+                    grammarPatterns = enrichedGrammar
+                )
+            }
         }
         
         // Otherwise, convert sentence analyses to identified sentences
@@ -215,9 +236,17 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                         width = 0.25f,
                         height = 0.06f
                     ),
-                    vocabulary = sentenceAnalysis.vocabulary,
+                    vocabulary = sentenceAnalysis.vocabulary.ifEmpty {
+                        // Extract relevant vocabulary from global analysis
+                        analysis.vocabulary.filter { vocab ->
+                            sentenceAnalysis.originalSentence.contains(vocab.word)
+                        }.take(5)
+                    },
                     grammarPatterns = analysis.grammarPatterns.filter { pattern ->
                         sentenceAnalysis.originalSentence.contains(pattern.pattern)
+                    }.ifEmpty {
+                        // If no specific patterns match, include general patterns
+                        analysis.grammarPatterns.take(2)
                     }
                 )
             }
@@ -243,57 +272,6 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         // Return empty list if no meaningful content
         Logger.w(Logger.Category.VIEWMODEL, "No meaningful content found in analysis result")
         return emptyList()
-    }
-    
-    private fun generateDemoSentences(): List<IdentifiedSentence> {
-        return listOf(
-            IdentifiedSentence(
-                id = 1,
-                text = "もういい出かけてくる",
-                translation = "Enough, I'm going out.",
-                position = TextPosition(0.3f, 0.2f, 0.2f, 0.05f),
-                vocabulary = listOf(
-                    VocabularyItem(
-                        word = "出かける",
-                        reading = "でかける",
-                        meaning = "to go out",
-                        partOfSpeech = "verb",
-                        difficulty = 2
-                    )
-                ),
-                grammarPatterns = listOf(
-                    GrammarPattern(
-                        pattern = "〜てくる",
-                        explanation = "Te-form + kuru indicates going out and doing something",
-                        example = "出かけてくる",
-                        difficulty = "intermediate"
-                    )
-                )
-            ),
-            IdentifiedSentence(
-                id = 2,
-                text = "留守番してろ！",
-                translation = "Stay home and watch the house!",
-                position = TextPosition(0.6f, 0.4f, 0.25f, 0.06f),
-                vocabulary = listOf(
-                    VocabularyItem(
-                        word = "留守番",
-                        reading = "るすばん",
-                        meaning = "house-sitting",
-                        partOfSpeech = "noun",
-                        difficulty = 3
-                    )
-                ),
-                grammarPatterns = listOf(
-                    GrammarPattern(
-                        pattern = "〜してろ",
-                        explanation = "Imperative form commanding someone to do something",
-                        example = "留守番してろ",
-                        difficulty = "intermediate"
-                    )
-                )
-            )
-        )
     }
     
     fun retryAnalysis() {

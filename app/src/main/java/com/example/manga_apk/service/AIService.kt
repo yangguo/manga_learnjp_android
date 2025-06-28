@@ -1484,29 +1484,45 @@ class AIService {
                             // Parse vocabulary for this identified sentence
                             val sentenceVocab = try {
                                 val vocabArray = sentenceObj.getAsJsonArray("vocabulary")
-                                vocabArray?.mapNotNull { vocabElement ->
+                                val parsedVocab = vocabArray?.mapNotNull { vocabElement ->
                                     try {
                                         val vocabObj = vocabElement.asJsonObject
                                         VocabularyItem(
                                             word = vocabObj.get("word")?.asString ?: "",
                                             reading = vocabObj.get("reading")?.asString ?: "",
                                             meaning = vocabObj.get("meaning")?.asString ?: "",
-                                            partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: ""
+                                            partOfSpeech = vocabObj.get("partOfSpeech")?.asString ?: "",
+                                            jlptLevel = vocabObj.get("jlptLevel")?.asString,
+                                            difficulty = vocabObj.get("difficulty")?.asInt ?: 1
                                         )
                                     } catch (e: Exception) {
                                         Logger.w(Logger.Category.AI_SERVICE, "Failed to parse vocabulary item $i: ${e.message}")
                                         null
                                     }
                                 } ?: emptyList()
+                                
+                                // If sentence has no vocabulary, extract relevant words from global vocabulary
+                                if (parsedVocab.isEmpty() && vocabulary.isNotEmpty()) {
+                                    val sentenceText = sentenceObj.get("text")?.asString ?: ""
+                                    vocabulary.filter { vocabItem ->
+                                        sentenceText.contains(vocabItem.word)
+                                    }.take(5) // Limit to avoid overwhelming the UI
+                                } else {
+                                    parsedVocab
+                                }
                             } catch (e: Exception) {
                                 Logger.w(Logger.Category.AI_SERVICE, "Failed to parse vocabulary for sentence $i: ${e.message}")
-                                emptyList<VocabularyItem>()
+                                // Fallback: extract relevant words from global vocabulary
+                                val sentenceText = sentenceObj.get("text")?.asString ?: ""
+                                vocabulary.filter { vocabItem ->
+                                    sentenceText.contains(vocabItem.word)
+                                }.take(3)
                             }
                             
                             // Parse grammar patterns for this identified sentence
                             val sentenceGrammar = try {
                                 val grammarArray = sentenceObj.getAsJsonArray("grammarPatterns")
-                                grammarArray?.mapNotNull { grammarElement ->
+                                val parsedGrammar = grammarArray?.mapNotNull { grammarElement ->
                                     try {
                                         val grammarObj = grammarElement.asJsonObject
                                         GrammarPattern(
@@ -1520,9 +1536,26 @@ class AIService {
                                         null
                                     }
                                 } ?: emptyList()
+                                
+                                // If sentence has no grammar patterns, extract relevant patterns from global analysis
+                                if (parsedGrammar.isEmpty() && grammarPatterns.isNotEmpty()) {
+                                    val sentenceText = sentenceObj.get("text")?.asString ?: ""
+                                    grammarPatterns.filter { pattern ->
+                                        sentenceText.contains(pattern.pattern) || 
+                                        pattern.example.contains(sentenceText) ||
+                                        sentenceText.matches(Regex(".*${Regex.escape(pattern.pattern)}.*"))
+                                    }.take(3) // Limit to avoid overwhelming the UI
+                                } else {
+                                    parsedGrammar
+                                }
                             } catch (e: Exception) {
                                 Logger.w(Logger.Category.AI_SERVICE, "Failed to parse grammar patterns for sentence $i: ${e.message}")
-                                emptyList<GrammarPattern>()
+                                // Fallback: extract relevant patterns from global analysis
+                                val sentenceText = sentenceObj.get("text")?.asString ?: ""
+                                grammarPatterns.filter { pattern ->
+                                    sentenceText.contains(pattern.pattern) ||
+                                    pattern.example.contains(sentenceText)
+                                }.take(2)
                             }
                             
                             val sentence = IdentifiedSentence(
@@ -2233,7 +2266,33 @@ class AIService {
         
         private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
         
-        private const val INTERACTIVE_READING_PROMPT = "Analyze this manga image and identify ALL Japanese text. Find speech bubbles, sound effects, signs, and any other Japanese text. For EACH text element found, provide: 1) The Japanese text 2) English translation 3) Position coordinates (x,y,width,height as 0-1 percentages) 4) Key vocabulary. Return JSON: { \"originalText\": \"combined_text\", \"translation\": \"combined_translation\", \"vocabulary\": [{ \"word\": \"word\", \"reading\": \"reading\", \"meaning\": \"meaning\", \"partOfSpeech\": \"type\" }], \"identifiedSentences\": [{ \"id\": 1, \"text\": \"sentence\", \"translation\": \"translation\", \"position\": { \"x\": 0.3, \"y\": 0.2, \"width\": 0.25, \"height\": 0.06 }, \"vocabulary\": [vocab_items] }] }"
+        private val INTERACTIVE_READING_PROMPT = """
+Analyze this manga image and identify ALL Japanese text. For EACH text element found, provide comprehensive language analysis.
+
+**Required for each sentence:**
+1) Japanese text
+2) English translation  
+3) Position coordinates (x,y,width,height as 0-1 percentages)
+4) Complete vocabulary breakdown (ALL words in the sentence)
+5) Grammar patterns present in the sentence
+
+**JSON Structure:**
+{
+  "originalText": "combined_text",
+  "translation": "combined_translation", 
+  "vocabulary": [{"word": "word", "reading": "reading", "meaning": "meaning", "partOfSpeech": "type"}],
+  "identifiedSentences": [{
+    "id": 1,
+    "text": "sentence",
+    "translation": "translation",
+    "position": {"x": 0.3, "y": 0.2, "width": 0.25, "height": 0.06},
+    "vocabulary": [{"word": "word", "reading": "reading", "meaning": "meaning", "partOfSpeech": "type", "jlptLevel": "N5", "difficulty": 1}],
+    "grammarPatterns": [{"pattern": "pattern", "explanation": "explanation", "example": "example", "difficulty": "beginner"}]
+  }]
+}
+
+**Important:** Every identified sentence MUST have its own vocabulary and grammarPatterns arrays with comprehensive analysis.
+""".trimIndent()
     }
     
     /**
@@ -2589,8 +2648,10 @@ class AIService {
                             text = textMatch.groupValues[1],
                             translation = translationMatch.groupValues[1],
                             position = position,
-                            vocabulary = emptyList(),
-                            grammarPatterns = emptyList()
+                            vocabulary = vocabulary.filter { vocabItem ->
+                                textMatch.groupValues[1].contains(vocabItem.word)
+                            }.take(3), // Extract relevant vocabulary for this sentence
+                            grammarPatterns = emptyList() // Grammar patterns will be enriched in ViewModel
                         ))
                     }
                 } catch (e: Exception) {

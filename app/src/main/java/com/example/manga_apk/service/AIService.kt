@@ -1586,6 +1586,14 @@ class AIService {
                 emptyList<IdentifiedSentence>()
             }
             
+            // Post-process: Split combined sentences if AI returned too few sentences
+            val processedSentences = if (identifiedSentences.size == 1 && identifiedSentences[0].text.length > 50) {
+                Logger.i(Logger.Category.AI_SERVICE, "Detected potentially combined sentence, attempting to split")
+                splitCombinedSentence(identifiedSentences[0], vocabulary, grammarPatterns)
+            } else {
+                identifiedSentences
+            }
+            
             TextAnalysis(
                 originalText = originalText,
                 translation = translation,
@@ -1593,7 +1601,7 @@ class AIService {
                 grammarPatterns = grammarPatterns,
                 context = context,
                 sentenceAnalyses = sentenceAnalyses,
-                identifiedSentences = identifiedSentences
+                identifiedSentences = processedSentences
             )
         } catch (e: Exception) {
             Logger.w(Logger.Category.AI_SERVICE, "Failed to parse from JsonObject: ${e.message}")
@@ -2267,31 +2275,59 @@ class AIService {
         private const val PANEL_DETECTION_PROMPT = "Analyze this manga page and detect all individual panels. For each panel, provide the bounding box coordinates (x, y, width, height) as percentages of the image dimensions, reading order, panel type, and confidence score. Return the response in JSON format: { \"panels\": [{ \"id\": \"panel_1\", \"boundingBox\": { \"x\": 10, \"y\": 15, \"width\": 40, \"height\": 35 }, \"readingOrder\": 1, \"confidence\": 0.95, \"panelType\": \"DIALOGUE\" }], \"readingOrder\": [1, 2, 3, 4], \"confidence\": 0.9 }. Panel types: DIALOGUE, ACTION, NARRATION, SOUND_EFFECT, TRANSITION."
         
         private val INTERACTIVE_READING_PROMPT = """
-Analyze this manga image and identify ALL Japanese text. For EACH text element found, provide comprehensive language analysis.
+Analyze this manga image and identify ALL Japanese text elements. CRITICALLY IMPORTANT: Split text into individual sentences or phrases - DO NOT combine multiple sentences into one.
 
-**Required for each sentence:**
-1) Japanese text
-2) English translation  
+**Text Segmentation Rules:**
+1) Each speech bubble = separate sentences
+2) Each text block = separate entries  
+3) Split on punctuation: 。！？etc.
+4) Split on natural phrase boundaries
+5) Each sentence gets its own analysis
+
+**For EACH separate sentence/phrase:**
+1) Japanese text (one sentence only)
+2) English translation
 3) Position coordinates (x,y,width,height as 0-1 percentages)
-4) Complete vocabulary breakdown (ALL words in the sentence)
-5) Grammar patterns present in the sentence
+4) Complete vocabulary breakdown 
+5) Grammar patterns present
 
-**JSON Structure:**
+**JSON Structure (MUST show multiple sentences):**
 {
-  "originalText": "combined_text",
+  "originalText": "combined_all_text",
   "translation": "combined_translation", 
   "vocabulary": [{"word": "word", "reading": "reading", "meaning": "meaning", "partOfSpeech": "type"}],
-  "identifiedSentences": [{
-    "id": 1,
-    "text": "sentence",
-    "translation": "translation",
-    "position": {"x": 0.3, "y": 0.2, "width": 0.25, "height": 0.06},
-    "vocabulary": [{"word": "word", "reading": "reading", "meaning": "meaning", "partOfSpeech": "type", "jlptLevel": "N5", "difficulty": 1}],
-    "grammarPatterns": [{"pattern": "pattern", "explanation": "explanation", "example": "example", "difficulty": "beginner"}]
-  }]
+  "identifiedSentences": [
+    {
+      "id": 1,
+      "text": "やあ",
+      "translation": "Hey",
+      "position": {"x": 0.2, "y": 0.1, "width": 0.15, "height": 0.05},
+      "vocabulary": [{"word": "やあ", "reading": "やあ", "meaning": "hey", "partOfSpeech": "interjection", "jlptLevel": "N5", "difficulty": 1}],
+      "grammarPatterns": [{"pattern": "やあ", "explanation": "Casual greeting", "example": "やあ、元気？", "difficulty": "beginner"}]
+    },
+    {
+      "id": 2, 
+      "text": "だあつっ！！",
+      "translation": "There!",
+      "position": {"x": 0.4, "y": 0.3, "width": 0.2, "height": 0.06},
+      "vocabulary": [{"word": "だあつっ", "reading": "だあつっ", "meaning": "there/that", "partOfSpeech": "exclamation", "jlptLevel": "N4", "difficulty": 2}],
+      "grammarPatterns": [{"pattern": "exclamation + っ！！", "explanation": "Emphatic exclamation", "example": "やったっ！！", "difficulty": "beginner"}]
+    },
+    {
+      "id": 3,
+      "text": "アーニャべんきょうしょだっ！！",
+      "translation": "Anya will study!",
+      "position": {"x": 0.1, "y": 0.5, "width": 0.3, "height": 0.08},
+      "vocabulary": [
+        {"word": "アーニャ", "reading": "アーニャ", "meaning": "Anya (name)", "partOfSpeech": "noun", "jlptLevel": "N5", "difficulty": 1},
+        {"word": "べんきょう", "reading": "べんきょう", "meaning": "study", "partOfSpeech": "noun", "jlptLevel": "N5", "difficulty": 1}
+      ],
+      "grammarPatterns": [{"pattern": "Noun + する", "explanation": "Verb formation", "example": "勉強する", "difficulty": "beginner"}]
+    }
+  ]
 }
 
-**Important:** Every identified sentence MUST have its own vocabulary and grammarPatterns arrays with comprehensive analysis.
+**CRITICAL:** Return MULTIPLE sentences in identifiedSentences array. Each speech bubble and text element should be separate entries. DO NOT put all text into one sentence.
 """.trimIndent()
     }
     
@@ -2732,6 +2768,97 @@ Analyze this manga image and identify ALL Japanese text. For EACH text element f
         } catch (e: Exception) {
             Logger.w(Logger.Category.AI_SERVICE, "Partial text parsing failed: ${e.message}")
             return null
+        }
+    }
+    
+    /**
+     * Split a combined sentence into multiple sentences based on Japanese punctuation and patterns
+     */
+    private fun splitCombinedSentence(
+        combinedSentence: IdentifiedSentence,
+        globalVocabulary: List<VocabularyItem>,
+        globalGrammar: List<GrammarPattern>
+    ): List<IdentifiedSentence> {
+        val text = combinedSentence.text
+        Logger.i(Logger.Category.AI_SERVICE, "Splitting combined sentence of length ${text.length}: ${text.take(50)}...")
+        
+        // Japanese sentence delimiters
+        val sentenceDelimiters = listOf("。", "！", "？", "!!", "!?", "?!", "っ!!", "だっ!!")
+        
+        // Split on major delimiters while preserving them
+        val segments = mutableListOf<String>()
+        var currentSegment = ""
+        var i = 0
+        
+        while (i < text.length) {
+            val char = text[i]
+            currentSegment += char
+            
+            // Check for multi-character delimiters first
+            var foundDelimiter = false
+            for (delimiter in sentenceDelimiters.sortedByDescending { it.length }) {
+                if (i + delimiter.length <= text.length && 
+                    text.substring(i + 1 - delimiter.length, i + 1) == delimiter) {
+                    segments.add(currentSegment.trim())
+                    currentSegment = ""
+                    foundDelimiter = true
+                    break
+                }
+            }
+            
+            // Also split on likely speech bubble boundaries (repeated characters)
+            if (!foundDelimiter && i < text.length - 1) {
+                val nextChar = text[i + 1]
+                if ((char == 'っ' && nextChar != 'っ') || 
+                    (char == '！' && nextChar != '！') ||
+                    (char in listOf('。', '？') && nextChar != char)) {
+                    // Natural break point
+                }
+            }
+            
+            i++
+        }
+        
+        // Add remaining segment
+        if (currentSegment.trim().isNotEmpty()) {
+            segments.add(currentSegment.trim())
+        }
+        
+        // Filter out very short segments and clean up
+        val meaningfulSegments = segments.filter { it.length >= 2 && it.any { char -> char.isLetterOrDigit() } }
+        
+        Logger.i(Logger.Category.AI_SERVICE, "Split into ${meaningfulSegments.size} segments: ${meaningfulSegments.map { it.take(20) }}")
+        
+        if (meaningfulSegments.size <= 1) {
+            return listOf(combinedSentence) // Couldn't split effectively
+        }
+        
+        // Create new IdentifiedSentence objects for each segment
+        return meaningfulSegments.mapIndexed { index, segment ->
+            val basePosition = combinedSentence.position
+            val adjustedPosition = TextPosition(
+                x = basePosition.x,
+                y = basePosition.y + (index * 0.08f), // Stack vertically
+                width = basePosition.width,
+                height = basePosition.height * 0.8f // Make each segment slightly smaller
+            )
+            
+            // Distribute vocabulary items based on segment content
+            val segmentVocab = globalVocabulary.filter { vocab ->
+                segment.contains(vocab.word)
+            }.take(3) // Limit per segment
+            
+            // Distribute grammar patterns 
+            val segmentGrammar = globalGrammar.take(2) // Share some grammar patterns
+            
+            IdentifiedSentence(
+                id = combinedSentence.id + index,
+                text = segment,
+                translation = "Translation for: $segment", // Simple fallback
+                position = adjustedPosition,
+                vocabulary = segmentVocab,
+                grammarPatterns = segmentGrammar
+            )
         }
     }
 }

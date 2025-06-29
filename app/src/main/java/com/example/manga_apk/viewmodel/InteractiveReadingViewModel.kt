@@ -242,11 +242,14 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                             sentenceAnalysis.originalSentence.contains(vocab.word)
                         }.take(5)
                     },
-                    grammarPatterns = analysis.grammarPatterns.filter { pattern ->
-                        sentenceAnalysis.originalSentence.contains(pattern.pattern)
-                    }.ifEmpty {
-                        // If no specific patterns match, include general patterns
-                        analysis.grammarPatterns.take(2)
+                    grammarPatterns = sentenceAnalysis.grammarPatterns.ifEmpty {
+                        // Fallback to global analysis if sentence has no grammar patterns
+                        analysis.grammarPatterns.filter { pattern ->
+                            sentenceAnalysis.originalSentence.contains(pattern.pattern)
+                        }.ifEmpty {
+                            // If no specific patterns match, include general patterns
+                            analysis.grammarPatterns.take(2)
+                        }
                     }
                 )
             }

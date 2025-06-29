@@ -321,11 +321,11 @@ fun InteractiveGrammarPatternCard(pattern: GrammarPattern) {
             modifier = Modifier.padding(12.dp)
         ) {
             Text(
-                text = pattern.pattern ?: "Unknown pattern",
+                text = pattern.pattern,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium
             )
-            if (!pattern.explanation.isNullOrEmpty()) {
+            if (pattern.explanation.isNotEmpty() && pattern.explanation.isNotBlank()) {
                 Text(
                     text = pattern.explanation,
                     style = MaterialTheme.typography.bodySmall,
@@ -333,7 +333,7 @@ fun InteractiveGrammarPatternCard(pattern: GrammarPattern) {
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            if (!pattern.example.isNullOrEmpty() && pattern.example != pattern.pattern) {
+            if (pattern.example.isNotEmpty() && pattern.example.isNotBlank() && pattern.example != pattern.pattern) {
                 Text(
                     text = "Example: ${pattern.example}",
                     style = MaterialTheme.typography.labelSmall,
@@ -473,10 +473,10 @@ fun SentenceAnalysisDialog(
     onDismiss: () -> Unit
 ) {
     // Validate content before rendering
-    val hasText = sentence.text?.isNotEmpty() ?: false
-    val hasTranslation = sentence.translation?.isNotEmpty() ?: false
-    val hasVocabulary = sentence.vocabulary?.isNotEmpty() ?: false
-    val hasGrammar = sentence.grammarPatterns?.isNotEmpty() ?: false
+    val hasText = sentence.text.isNotEmpty()
+    val hasTranslation = sentence.translation.isNotEmpty()
+    val hasVocabulary = sentence.vocabulary.isNotEmpty()
+    val hasGrammar = sentence.grammarPatterns.any { it.pattern.isNotEmpty() && it.pattern.isNotBlank() }
     
     if (!hasText && !hasTranslation) {
         // Show error dialog for completely empty content
@@ -675,12 +675,12 @@ fun SentenceAnalysisDialog(
                                 modifier = Modifier.heightIn(max = 200.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(sentence.grammarPatterns) { pattern ->
+                                items(sentence.grammarPatterns.filter { it.pattern.isNotEmpty() && it.pattern.isNotBlank() }) { pattern ->
                                     InteractiveGrammarPatternCard(pattern = pattern)
                                 }
                             }
                         } else {
-                            sentence.grammarPatterns.forEach { pattern ->
+                            sentence.grammarPatterns.filter { it.pattern.isNotEmpty() && it.pattern.isNotBlank() }.forEach { pattern ->
                                 InteractiveGrammarPatternCard(pattern = pattern)
                             }
                         }

@@ -1305,14 +1305,17 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                                  }
                                  
                                  // Grammar patterns for this sentence
-                                 if (sentence.grammarPatterns.isNotEmpty()) {
-                                     Text(
-                                         "Grammar Patterns:",
-                                         fontSize = 12.sp,
-                                         fontWeight = FontWeight.Medium,
-                                         color = MaterialTheme.colorScheme.tertiary
-                                     )
-                                     sentence.grammarPatterns.take(3).forEach { grammar ->
+                                val validGrammarPatterns = sentence.grammarPatterns.filter { 
+                                    it.pattern.isNotEmpty() && it.pattern.isNotBlank() 
+                                }
+                                if (validGrammarPatterns.isNotEmpty()) {
+                                    Text(
+                                        "Grammar Patterns:",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.tertiary
+                                    )
+                                    validGrammarPatterns.take(3).forEach { grammar ->
                                          Column(
                                              modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                                          ) {
@@ -1322,13 +1325,15 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                                                  fontWeight = FontWeight.Medium,
                                                  color = MaterialTheme.colorScheme.onSurfaceVariant
                                              )
-                                             Text(
-                                                 "  ${grammar.explanation}",
-                                                 fontSize = 10.sp,
-                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                 modifier = Modifier.padding(start = 4.dp)
-                                             )
-                                             if (grammar.example.isNotEmpty()) {
+                                             if (grammar.explanation.isNotEmpty() && grammar.explanation.isNotBlank()) {
+                                                 Text(
+                                                     "  ${grammar.explanation}",
+                                                     fontSize = 10.sp,
+                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                     modifier = Modifier.padding(start = 4.dp)
+                                                 )
+                                             }
+                                             if (grammar.example.isNotEmpty() && grammar.example.isNotBlank()) {
                                                  Text(
                                                      "  Example: ${grammar.example}",
                                                      fontSize = 10.sp,

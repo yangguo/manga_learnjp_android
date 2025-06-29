@@ -377,9 +377,19 @@ fun EnhancedInteractiveView(
         
         // Text markers overlay
         if (imageSize.first > 0 && imageSize.second > 0) {
-            identifiedSentences.forEach { sentence ->
+            identifiedSentences.forEachIndexed { index, sentence ->
                 val markerX = (sentence.position.x * imageSize.first).roundToInt()
                 val markerY = (sentence.position.y * imageSize.second).roundToInt()
+                
+                // Use different colors for better visual separation
+                val markerColor = when (index % 6) {
+                    0 -> Color.Red
+                    1 -> Color.Blue
+                    2 -> Color.Green
+                    3 -> Color.Magenta
+                    4 -> Color.Cyan
+                    else -> Color(0xFFFF6600) // Orange
+                }
                 
                 Box(
                     modifier = Modifier
@@ -387,13 +397,13 @@ fun EnhancedInteractiveView(
                             x = with(density) { markerX.toDp() },
                             y = with(density) { markerY.toDp() }
                         )
-                        .size(32.dp)
+                        .size(36.dp) // Slightly larger for better visibility
                         .background(
-                            Color.Red,
+                            markerColor,
                             CircleShape
                         )
                         .border(
-                            2.dp,
+                            3.dp, // Thicker border for better contrast
                             Color.White,
                             CircleShape
                         )
@@ -404,14 +414,21 @@ fun EnhancedInteractiveView(
                                 Logger.logError("EnhancedInteractiveView", "Error in marker click: ${e.message}")
                             }
                         }
-                        .zIndex(1f),
+                        .zIndex(10f + index), // Higher z-index with stacking
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = sentence.id.toString(),
                         color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 16.sp, // Larger text for better readability
+                        fontWeight = FontWeight.Bold,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = androidx.compose.ui.graphics.Shadow(
+                                color = Color.Black,
+                                offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+                                blurRadius = 2f
+                            )
+                        )
                     )
                 }
             }

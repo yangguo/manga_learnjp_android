@@ -1358,6 +1358,58 @@ class AIService {
     }
     
     /**
+     * Validates if position coordinates are within valid bounds and not degenerate
+     */
+    private fun isValidPosition(x: Float, y: Float, width: Float, height: Float): Boolean {
+        return x >= 0f && x <= 1f && 
+               y >= 0f && y <= 1f && 
+               width > 0f && width <= 1f && 
+               height > 0f && height <= 1f &&
+               (x + width) <= 1f && 
+               (y + height) <= 1f &&
+               width >= 0.05f && height >= 0.02f // Minimum size to be visible
+    }
+    
+    /**
+     * Generates non-overlapping positions for sentence markers in a grid pattern
+     * Ensures multiple sentences are visually separated on the image
+     */
+    private fun generateNonOverlappingPosition(index: Int, totalSentences: Int): TextPosition {
+        // Create a grid layout that adapts to the number of sentences
+        val cols = when {
+            totalSentences <= 3 -> 3
+            totalSentences <= 6 -> 3
+            totalSentences <= 9 -> 3
+            else -> 4
+        }
+        
+        val rows = (totalSentences + cols - 1) / cols // Ceiling division
+        
+        val col = index % cols
+        val row = index / cols
+        
+        // Calculate position with proper spacing to avoid overlap
+        val marginX = 0.05f
+        val marginY = 0.1f
+        val spacingX = (1f - 2 * marginX) / cols
+        val spacingY = (1f - 2 * marginY) / rows
+        
+        val x = marginX + col * spacingX + spacingX * 0.1f // Small offset within cell
+        val y = marginY + row * spacingY + spacingY * 0.1f // Small offset within cell
+        
+        // Ensure marker size is reasonable and visible
+        val width = kotlin.math.min(spacingX * 0.8f, 0.2f)
+        val height = kotlin.math.min(spacingY * 0.6f, 0.08f)
+        
+        return TextPosition(
+            x = kotlin.math.max(0f, kotlin.math.min(x, 1f - width)),
+            y = kotlin.math.max(0f, kotlin.math.min(y, 1f - height)),
+            width = width,
+            height = height
+        )
+    }
+    
+    /**
      * Parse TextAnalysis from JsonObject with defensive null checking
      */
     private fun parseFromJsonObject(jsonObject: JsonObject): TextAnalysis? {
@@ -1465,20 +1517,21 @@ class AIService {
                             val sentenceObj = identifiedArray[i].asJsonObject
                             val positionObj = sentenceObj.getAsJsonObject("position")
                             val position = if (positionObj != null) {
-                                TextPosition(
-                                    x = positionObj.get("x")?.asFloat ?: 0f,
-                                    y = positionObj.get("y")?.asFloat ?: 0f,
-                                    width = positionObj.get("width")?.asFloat ?: 0f,
-                                    height = positionObj.get("height")?.asFloat ?: 0f
-                                )
+                                val x = positionObj.get("x")?.asFloat ?: 0f
+                                val y = positionObj.get("y")?.asFloat ?: 0f
+                                val width = positionObj.get("width")?.asFloat ?: 0f
+                                val height = positionObj.get("height")?.asFloat ?: 0f
+                                
+                                // Validate position coordinates are within bounds and not overlapping
+                                if (isValidPosition(x, y, width, height)) {
+                                    TextPosition(x, y, width, height)
+                                } else {
+                                    // Generate non-overlapping fallback position
+                                    generateNonOverlappingPosition(i, sentences.size)
+                                }
                             } else {
-                                // Generate default position if missing
-                                TextPosition(
-                                    x = 0.1f + (i % 3) * 0.3f,
-                                    y = 0.2f + (i / 3) * 0.2f,
-                                    width = 0.25f,
-                                    height = 0.06f
-                                )
+                                // Generate non-overlapping fallback position when position is missing
+                                generateNonOverlappingPosition(i, sentences.size)
                             }
                             
                             // Parse vocabulary for this identified sentence

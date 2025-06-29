@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,7 +42,6 @@ fun MangaAnalysisScreen(
     onNavigateToDebugLog: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -100,7 +101,6 @@ fun MangaAnalysisScreen(
                         viewModel.quickAnalysis()
                     },
                     onPanelAnalysis = { viewModel.setMode(AnalysisMode.PANEL_ANALYSIS) },
-                    onReadingMode = { viewModel.setMode(AnalysisMode.READING_MODE) },
                     onNavigateToInteractiveReading = onNavigateToInteractiveReading
                 )
             }
@@ -515,7 +515,6 @@ fun UploadSection(
     isProcessing: Boolean,
     onQuickAnalysis: () -> Unit,
     onPanelAnalysis: () -> Unit,
-    onReadingMode: () -> Unit,
     onNavigateToInteractiveReading: () -> Unit
 ) {
     Column(
@@ -665,7 +664,7 @@ fun UploadSection(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        Icons.Default.MenuBook,
+                        Icons.AutoMirrored.Filled.MenuBook,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp)
                     )
@@ -866,7 +865,7 @@ fun PanelAnalysisSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                Icons.Default.ArrowBack,
+                Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp)
             )
@@ -904,7 +903,7 @@ fun ModeButton(
         ) {
             Icon(
                 icon,
-                contentDescription = null,
+                contentDescription = description,
                 modifier = Modifier.size(32.dp),
                 tint = if (isPrimary) 
                     MaterialTheme.colorScheme.onPrimary 
@@ -1042,7 +1041,6 @@ fun SimpleAnalysisSection(
                 Button(
                     onClick = {
                         println("UI: Analyze Full Image button clicked!")
-                        println("UI: Image present: ${selectedImage != null}")
                         println("UI: Processing state: $isProcessing")
                         onAnalyze()
                     },

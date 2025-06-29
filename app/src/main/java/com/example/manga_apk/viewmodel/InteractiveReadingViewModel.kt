@@ -192,6 +192,11 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         if (analysis.identifiedSentences.isNotEmpty()) {
             Logger.i(Logger.Category.VIEWMODEL, "Using ${analysis.identifiedSentences.size} pre-parsed identified sentences")
             
+            // Log position information for debugging
+            analysis.identifiedSentences.forEachIndexed { index, sentence ->
+                Logger.d(Logger.Category.VIEWMODEL, "Sentence $index: '${sentence.text}' at position (${sentence.position.x}, ${sentence.position.y}) size (${sentence.position.width}, ${sentence.position.height})")
+            }
+            
             // Enrich sentences that have missing vocabulary/grammar with global analysis
             return analysis.identifiedSentences.map { sentence ->
                 val enrichedVocabulary = if (sentence.vocabulary.isEmpty() && analysis.vocabulary.isNotEmpty()) {
@@ -225,17 +230,12 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         // Otherwise, convert sentence analyses to identified sentences
         if (analysis.sentenceAnalyses.isNotEmpty()) {
             Logger.i(Logger.Category.VIEWMODEL, "Converting ${analysis.sentenceAnalyses.size} sentence analyses to identified sentences")
-            return analysis.sentenceAnalyses.mapIndexed { index, sentenceAnalysis ->
+            val convertedSentences = analysis.sentenceAnalyses.mapIndexed { index, sentenceAnalysis ->
                 IdentifiedSentence(
                     id = index + 1,
                     text = sentenceAnalysis.originalSentence,
                     translation = sentenceAnalysis.translation,
-                    position = sentenceAnalysis.position ?: TextPosition(
-                        x = 0.1f + (index % 3) * 0.3f,
-                        y = 0.2f + (index / 3) * 0.2f,
-                        width = 0.25f,
-                        height = 0.06f
-                    ),
+                    position = sentenceAnalysis.position ?: generateNonOverlappingPosition(index, analysis.sentenceAnalyses.size),
                     vocabulary = sentenceAnalysis.vocabulary.ifEmpty {
                         // Extract relevant vocabulary from global analysis
                         analysis.vocabulary.filter { vocab ->
@@ -250,6 +250,13 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
                     }
                 )
             }
+            
+            // Log position information for debugging
+            convertedSentences.forEachIndexed { index, sentence ->
+                Logger.d(Logger.Category.VIEWMODEL, "Converted sentence $index: '${sentence.text}' at position (${sentence.position.x}, ${sentence.position.y}) size (${sentence.position.width}, ${sentence.position.height})")
+            }
+            
+            return convertedSentences
         }
         
         // If no sentence-specific data, but we have overall text, create a single sentence
@@ -272,6 +279,45 @@ class InteractiveReadingViewModel(private val context: Context) : ViewModel() {
         // Return empty list if no meaningful content
         Logger.w(Logger.Category.VIEWMODEL, "No meaningful content found in analysis result")
         return emptyList()
+    }
+    
+    /**
+     * Generates non-overlapping positions for sentence markers in a grid pattern
+     * Ensures multiple sentences are visually separated on the image
+     */
+    private fun generateNonOverlappingPosition(index: Int, totalSentences: Int): TextPosition {
+        // Create a grid layout that adapts to the number of sentences
+        val cols = when {
+            totalSentences <= 3 -> 3
+            totalSentences <= 6 -> 3
+            totalSentences <= 9 -> 3
+            else -> 4
+        }
+        
+        val rows = (totalSentences + cols - 1) / cols // Ceiling division
+        
+        val col = index % cols
+        val row = index / cols
+        
+        // Calculate position with proper spacing to avoid overlap
+        val marginX = 0.05f
+        val marginY = 0.1f
+        val spacingX = (1f - 2 * marginX) / cols
+        val spacingY = (1f - 2 * marginY) / rows
+        
+        val x = marginX + col * spacingX + spacingX * 0.1f // Small offset within cell
+        val y = marginY + row * spacingY + spacingY * 0.1f // Small offset within cell
+        
+        // Ensure marker size is reasonable and visible
+        val width = kotlin.math.min(spacingX * 0.8f, 0.2f)
+        val height = kotlin.math.min(spacingY * 0.6f, 0.08f)
+        
+        return TextPosition(
+            x = kotlin.math.max(0f, kotlin.math.min(x, 1f - width)),
+            y = kotlin.math.max(0f, kotlin.math.min(y, 1f - height)),
+            width = width,
+            height = height
+        )
     }
     
     fun retryAnalysis() {

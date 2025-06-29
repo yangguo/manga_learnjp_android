@@ -1322,10 +1322,20 @@ class AIService {
     private fun parseJsonWithValidation(jsonContent: String): TextAnalysis? {
         return try {
             // First check if JSON is incomplete (common issue with interactive reading)
-            val repairedContent = repairIncompleteJson(jsonContent)
+            val repairedContent = try {
+                repairIncompleteJson(jsonContent)
+            } catch (repairError: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "JSON repair failed, using original content: ${repairError.message}")
+                jsonContent
+            }
             
             // First attempt: Direct parsing with repaired content
-            val analysis = gson.fromJson(repairedContent, TextAnalysis::class.java)
+            val analysis = try {
+                gson.fromJson(repairedContent, TextAnalysis::class.java)
+            } catch (parseError: JsonSyntaxException) {
+                Logger.w(Logger.Category.AI_SERVICE, "Direct JSON parsing failed: ${parseError.message}")
+                null
+            }
             
             // Validate parsed object - ensure critical fields are not null/empty
             if (analysis != null && validateTextAnalysis(analysis)) {
@@ -1334,20 +1344,34 @@ class AIService {
             }
             
             // Second attempt: Try parsing as JsonObject first for better error handling
-            val jsonObject = gson.fromJson(repairedContent, JsonObject::class.java)
+            val jsonObject = try {
+                gson.fromJson(repairedContent, JsonObject::class.java)
+            } catch (parseError: JsonSyntaxException) {
+                Logger.w(Logger.Category.AI_SERVICE, "JsonObject parsing failed: ${parseError.message}")
+                null
+            }
+            
             if (jsonObject != null) {
                 return parseFromJsonObject(jsonObject)
             }
             
-            Logger.w(Logger.Category.AI_SERVICE, "JSON parsing validation failed")
-            null
+            Logger.w(Logger.Category.AI_SERVICE, "JSON parsing validation failed, attempting partial parsing")
+            // Try to extract partial data even from malformed JSON
+            parsePartialJson(jsonContent)
+            
         } catch (e: JsonSyntaxException) {
             Logger.w(Logger.Category.AI_SERVICE, "JSON syntax error in enhanced parser: ${e.message}")
             // Try to extract partial data even from malformed JSON
             return parsePartialJson(jsonContent)
         } catch (e: Exception) {
             Logger.w(Logger.Category.AI_SERVICE, "Unexpected error in JSON parsing: ${e.message}")
-            null
+            // Last resort: try partial parsing
+            return try {
+                parsePartialJson(jsonContent)
+            } catch (partialError: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Partial parsing also failed: ${partialError.message}")
+                null
+            }
         }
     }
     
@@ -2431,9 +2455,15 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
             // Balance brackets and braces
             repaired = balanceBrackets(repaired)
             
-            // Clean up trailing commas
-            repaired = repaired.replace(Regex(",\\s*}"), "}")
-                             .replace(Regex(",\\s*]"), "]")
+            // Clean up trailing commas with safer regex handling
+            try {
+                repaired = repaired.replace(Regex(",\\s*}"), "}")
+                                 .replace(Regex(",\\s*]"), "]")
+            } catch (regexError: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Regex error in trailing comma cleanup: ${regexError.message}")
+                // Fallback to simple string replacement
+                repaired = repaired.replace(",}", "}").replace(",]", "]")
+            }
             
             if (repaired != jsonContent.trim()) {
                 Logger.i(Logger.Category.AI_SERVICE, "JSON repair applied - original: ${jsonContent.length} chars, repaired: ${repaired.length} chars")
@@ -2453,26 +2483,44 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
     private fun removeMarkdownCodeBlocks(content: String): String {
         var cleaned = content
         
-        // Handle multiple markdown patterns
-        val patterns = listOf(
-            Regex("```(?:json)?\\s*([\\s\\S]*?)\\s*```"),
-            Regex("```\\s*([\\s\\S]*?)\\s*```"),
-            Regex("`{3,}\\s*json\\s*([\\s\\S]*?)`{3,}", RegexOption.IGNORE_CASE),
-            Regex("`{3,}\\s*([\\s\\S]*?)`{3,}")
-        )
-        
-        for (pattern in patterns) {
-            val match = pattern.find(cleaned)
-            if (match != null) {
-                cleaned = match.groupValues[1].trim()
-                break
+        try {
+            // Handle multiple markdown patterns with safer regex
+            val patterns = listOf(
+                Regex("```(?:json)?\\s*([\\s\\S]*?)\\s*```", RegexOption.DOT_MATCHES_ALL),
+                Regex("```\\s*([\\s\\S]*?)\\s*```", RegexOption.DOT_MATCHES_ALL),
+                Regex("`{3,}\\s*json\\s*(.+?)`{3,}", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)),
+                Regex("`{3,}\\s*(.+?)`{3,}", RegexOption.DOT_MATCHES_ALL)
+            )
+            
+            for (pattern in patterns) {
+                try {
+                    val match = pattern.find(cleaned)
+                    if (match != null) {
+                        cleaned = match.groupValues[1].trim()
+                        break
+                    }
+                } catch (regexError: Exception) {
+                    Logger.w(Logger.Category.AI_SERVICE, "Regex pattern error: ${regexError.message}")
+                    continue
+                }
             }
+            
+            // Remove simple markdown patterns with error handling
+            try {
+                cleaned = cleaned.replace(Regex("```json\\s*"), "")
+                cleaned = cleaned.replace(Regex("```\\s*$"), "")
+                cleaned = cleaned.replace(Regex("^```\\s*"), "")
+            } catch (regexError: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Regex cleanup error: ${regexError.message}")
+                // Fallback to simple string replacement
+                cleaned = cleaned.replace("```json", "").replace("```", "")
+            }
+            
+        } catch (e: Exception) {
+            Logger.w(Logger.Category.AI_SERVICE, "Markdown removal failed: ${e.message}")
+            // Fallback: simple string replacement
+            cleaned = content.replace("```json", "").replace("```", "")
         }
-        
-        // Remove simple markdown patterns
-        cleaned = cleaned.replace(Regex("```json\\s*"), "")
-        cleaned = cleaned.replace(Regex("```\\s*$"), "")
-        cleaned = cleaned.replace(Regex("^```\\s*"), "")
         
         return cleaned.trim()
     }

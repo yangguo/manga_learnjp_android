@@ -280,35 +280,36 @@ class AIService {
     }
     
     suspend fun analyzeImageEnhanced(
-        bitmap: Bitmap,
-        config: AIConfig,
-        analysisType: AnalysisType = AnalysisType.COMPREHENSIVE
-    ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
-        try {
-            Logger.i(Logger.Category.AI_SERVICE, "Starting enhanced analysis with type: ${analysisType.name}")
-            
-            val prompt = when (analysisType) {
-                AnalysisType.COMPREHENSIVE -> mangaAnalysisPrompt
-                AnalysisType.VOCABULARY_FOCUS -> vocabularyFocusPrompt
-                AnalysisType.QUICK_TRANSLATION -> "Extract ALL Japanese text from EVERY element in this manga panel (speech bubbles, sound effects, background text, etc.) and provide quick translation. Combine ALL text found into a single comprehensive result."
-            }
-            
-            // Use the enhanced analysis with custom prompt
-            when (config.primaryProvider) {
-                AIProvider.OPENAI -> {
-                    analyzeWithOpenAI(bitmap, config.openaiConfig)
-                }
-                AIProvider.GEMINI -> {
-                    analyzeWithGemini(bitmap, config.geminiConfig)
-                }
-                else -> analyzeImage(bitmap, config)
-            }
-        } catch (e: Exception) {
-            Logger.logError("analyzeImageEnhanced", e)
-            // Fallback to basic analysis
-            analyzeImage(bitmap, config)
+    bitmap: Bitmap,
+    config: AIConfig,
+    analysisType: AnalysisType = AnalysisType.COMPREHENSIVE,
+    prompt: String? = null
+): Result<TextAnalysis> = withContext(Dispatchers.IO) {
+    try {
+        Logger.i(Logger.Category.AI_SERVICE, "Starting enhanced analysis with type: ${analysisType.name}")
+
+        val analysisPrompt = prompt ?: when (analysisType) {
+            AnalysisType.COMPREHENSIVE -> mangaAnalysisPrompt
+            AnalysisType.VOCABULARY_FOCUS -> vocabularyFocusPrompt
+            AnalysisType.QUICK_TRANSLATION -> "Extract ALL Japanese text from EVERY element in this manga panel (speech bubbles, sound effects, background text, etc.) and provide quick translation. Combine ALL text found into a single comprehensive result."
         }
+
+        // Use the enhanced analysis with custom prompt
+        when (config.primaryProvider) {
+            AIProvider.OPENAI -> {
+                analyzeWithOpenAI(bitmap, config.openaiConfig, analysisPrompt)
+            }
+            AIProvider.GEMINI -> {
+                analyzeWithGemini(bitmap, config.geminiConfig, analysisPrompt)
+            }
+            else -> analyzeImage(bitmap, config)
+        }
+    } catch (e: Exception) {
+        Logger.logError("analyzeImageEnhanced", e)
+        // Fallback to basic analysis
+        analyzeImage(bitmap, config)
     }
+}
     
     enum class AnalysisType {
         COMPREHENSIVE,
@@ -361,7 +362,8 @@ class AIService {
     
     private suspend fun analyzeWithOpenAI(
         bitmap: Bitmap,
-        config: OpenAIConfig
+        config: OpenAIConfig,
+        analysisPrompt: String = mangaAnalysisPrompt
     ): Result<TextAnalysis> {
         println("AIService: Starting analyzeWithOpenAI")
         android.util.Log.d("MangaLearnJP", "AIService: analyzeWithOpenAI - API key length: ${config.apiKey.length}")
@@ -391,7 +393,7 @@ class AIService {
                 mapOf(
                     "role" to "user",
                     "content" to listOf(
-                        mapOf("type" to "text", "text" to mangaAnalysisPrompt),
+                        mapOf("type" to "text", "text" to MANGA_ANALYSIS_PROMPT),
                         mapOf(
                             "type" to "image_url",
                             "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
@@ -532,7 +534,8 @@ class AIService {
     
     private suspend fun analyzeWithGemini(
         bitmap: Bitmap,
-        config: GeminiConfig
+        config: GeminiConfig,
+        analysisPrompt: String = mangaAnalysisPrompt
     ): Result<TextAnalysis> {
         val base64Image = bitmapToBase64(bitmap)
         
@@ -540,7 +543,7 @@ class AIService {
             add("contents", gson.toJsonTree(listOf(
                 mapOf(
                     "parts" to listOf(
-                        mapOf("text" to mangaAnalysisPrompt),
+                        mapOf("text" to analysisPrompt),
                         mapOf(
                             "inline_data" to mapOf(
                                 "mime_type" to "image/jpeg",
@@ -593,7 +596,8 @@ class AIService {
     
     private suspend fun analyzeWithCustomAPI(
         bitmap: Bitmap,
-        config: CustomAPIConfig
+        config: CustomAPIConfig,
+        analysisPrompt: String = mangaAnalysisPrompt
     ): Result<TextAnalysis> {
         println("AIService: Starting analyzeWithCustomAPI")
         println("AIService: Bitmap info - Size: ${bitmap.width}x${bitmap.height}, Config: ${bitmap.config}")
@@ -682,7 +686,7 @@ class AIService {
                 mapOf(
                     "role" to "user",
                     "content" to listOf(
-                        mapOf("type" to "text", "text" to MANGA_ANALYSIS_PROMPT),
+                        mapOf("type" to "text", "text" to analysisPrompt),
                         mapOf(
                             "type" to "image_url",
                             "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
@@ -700,7 +704,7 @@ class AIService {
                 mapOf(
                     "role" to "user",
                     "content" to listOf(
-                        mapOf("type" to "text", "text" to MANGA_ANALYSIS_PROMPT.take(100) + "..."),
+                        mapOf("type" to "text", "text" to analysisPrompt.take(100) + "..."),
                         mapOf(
                             "type" to "image_url",
                             "image_url" to mapOf("url" to "data:image/jpeg;base64,[BASE64_IMAGE_${base64Image.length}_CHARS]")
@@ -1019,8 +1023,8 @@ class AIService {
                     else -> "network"
                 }
                 
-                println("AIService: ${timeoutType.capitalize()} timeout on attempt ${attempt + 1}: ${e.message}")
-                android.util.Log.w("MangaLearnJP", "AIService: ${timeoutType.capitalize()} timeout on attempt ${attempt + 1}: ${e.message}")
+                println("AIService: ${timeoutType.replaceFirstChar { it.uppercase() }} timeout on attempt ${attempt + 1}: ${e.message}")
+                android.util.Log.w("MangaLearnJP", "AIService: ${timeoutType.replaceFirstChar { it.uppercase() }} timeout on attempt ${attempt + 1}: ${e.message}")
                 
                 if (attempt == maxRetries) {
                     val errorMsg = "Request failed after ${maxRetries + 1} attempts due to ${timeoutType} timeout. " +
@@ -1639,9 +1643,26 @@ class AIService {
                 emptyList<IdentifiedSentence>()
             }
             
-            // Trust the AI's spatial detection - no post-processing sentence splitting
-            val processedSentences = identifiedSentences
-            Logger.i(Logger.Category.AI_SERVICE, "Using AI-detected sentences without post-processing: ${processedSentences.size} sentences")
+            // Fallback: If no identified sentences from AI, split originalText
+            val processedSentences = if (identifiedSentences.isEmpty() && originalText.isNotBlank()) {
+                Logger.w(Logger.Category.AI_SERVICE, "No identified sentences found. Splitting originalText as a fallback.")
+                val splitters = charArrayOf('。', '！', '？', '…')
+                val splitSentences = originalText.split(*splitters).map { it.trim() }.filter { it.isNotEmpty() }
+
+                splitSentences.mapIndexed { index, sentenceText ->
+                    IdentifiedSentence(
+                        id = index + 1,
+                        text = sentenceText,
+                        translation = "", // No translation available in this fallback
+                        position = generateNonOverlappingPosition(index, splitSentences.size),
+                        vocabulary = emptyList(),
+                        grammarPatterns = emptyList()
+                    )
+                }
+            } else {
+                identifiedSentences
+            }
+            Logger.i(Logger.Category.AI_SERVICE, "Using ${processedSentences.size} sentences for interactive reading")
             
             TextAnalysis(
                 originalText = originalText,
@@ -1842,12 +1863,12 @@ class AIService {
                     panelAnalyses.add(
                         com.example.manga_apk.data.PanelTextAnalysis(
                             panelId = panel.id,
-                            extractedText = analysis.originalText ?: "",
-                            translation = analysis.translation ?: "",
+                            extractedText = analysis.originalText,
+                            translation = analysis.translation,
                             vocabulary = analysis.vocabulary.map { vocab ->
                                 com.example.manga_apk.data.VocabularyItem(
                                     word = vocab.word,
-                                    reading = vocab.reading ?: "",
+                                    reading = vocab.reading,
                                     meaning = vocab.meaning,
                                     partOfSpeech = vocab.partOfSpeech,
                                     jlptLevel = vocab.jlptLevel,
@@ -1857,8 +1878,8 @@ class AIService {
                             grammarPatterns = analysis.grammarPatterns.map { grammar ->
                                 com.example.manga_apk.data.GrammarPattern(
                                     pattern = grammar.pattern,
-                                    explanation = grammar.explanation ?: "",
-                                    example = grammar.example ?: "",
+                                    explanation = grammar.explanation,
+                                    example = grammar.example,
                                     difficulty = grammar.difficulty
                                 )
                             },

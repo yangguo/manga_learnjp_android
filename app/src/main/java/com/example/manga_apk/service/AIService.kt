@@ -2453,16 +2453,18 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
             repaired = fixIncompleteStrings(repaired)
             
             // Balance brackets and braces
-            repaired = balanceBrackets(repaired)
-            
-            // Clean up trailing commas with safer regex handling
+            repaired = balanceBrackets(repaired)            
+            // Clean up trailing commas with safer approach
             try {
-                repaired = repaired.replace(Regex(",\\s*}"), "}")
-                                 .replace(Regex(",\\s*]"), "]")
+                // Use simpler regex patterns that are more reliable
+                repaired = repaired.replace(",\\s*}".toRegex(), "}")
+                                 .replace(",\\s*]".toRegex(), "]")
             } catch (regexError: Exception) {
                 Logger.w(Logger.Category.AI_SERVICE, "Regex error in trailing comma cleanup: ${regexError.message}")
                 // Fallback to simple string replacement
                 repaired = repaired.replace(",}", "}").replace(",]", "]")
+                                 .replace(", }", "}").replace(", ]", "]")
+                                 .replace(",\n}", "}").replace(",\n]", "]")
             }
             
             if (repaired != jsonContent.trim()) {
@@ -2484,37 +2486,31 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
         var cleaned = content
         
         try {
-            // Handle multiple markdown patterns with safer regex
-            val patterns = listOf(
-                Regex("```(?:json)?\\s*([\\s\\S]*?)\\s*```", RegexOption.DOT_MATCHES_ALL),
-                Regex("```\\s*([\\s\\S]*?)\\s*```", RegexOption.DOT_MATCHES_ALL),
-                Regex("`{3,}\\s*json\\s*(.+?)`{3,}", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)),
-                Regex("`{3,}\\s*(.+?)`{3,}", RegexOption.DOT_MATCHES_ALL)
-            )
-            
-            for (pattern in patterns) {
-                try {
-                    val match = pattern.find(cleaned)
-                    if (match != null) {
-                        cleaned = match.groupValues[1].trim()
-                        break
-                    }
-                } catch (regexError: Exception) {
-                    Logger.w(Logger.Category.AI_SERVICE, "Regex pattern error: ${regexError.message}")
-                    continue
+            // Handle markdown code blocks with simpler, more reliable patterns
+            // First try to extract content between triple backticks
+            val codeBlockStart = cleaned.indexOf("```")
+            if (codeBlockStart >= 0) {
+                val afterStart = cleaned.substring(codeBlockStart + 3)
+                // Skip optional "json" marker
+                val contentStart = if (afterStart.trimStart().startsWith("json")) {
+                    afterStart.indexOf("json") + 4
+                } else {
+                    0
+                }
+                
+                val codeBlockEnd = afterStart.indexOf("```", contentStart)
+                if (codeBlockEnd >= 0) {
+                    cleaned = afterStart.substring(contentStart, codeBlockEnd).trim()
+                } else {
+                    // No closing backticks, take everything after the opening
+                    cleaned = afterStart.substring(contentStart).trim()
                 }
             }
             
-            // Remove simple markdown patterns with error handling
-            try {
-                cleaned = cleaned.replace(Regex("```json\\s*"), "")
-                cleaned = cleaned.replace(Regex("```\\s*$"), "")
-                cleaned = cleaned.replace(Regex("^```\\s*"), "")
-            } catch (regexError: Exception) {
-                Logger.w(Logger.Category.AI_SERVICE, "Regex cleanup error: ${regexError.message}")
-                // Fallback to simple string replacement
-                cleaned = cleaned.replace("```json", "").replace("```", "")
-            }
+            // Remove any remaining markdown markers with simple string operations
+            cleaned = cleaned.replace("```json", "")
+                           .replace("```", "")
+                           .trim()
             
         } catch (e: Exception) {
             Logger.w(Logger.Category.AI_SERVICE, "Markdown removal failed: ${e.message}")
@@ -2669,12 +2665,24 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
         if (lastColonIndex >= 0) {
             val afterColon = cleaned.substring(lastColonIndex + 1).trim()
             // If value is incomplete (just quotes or partial content)
-            if (afterColon == "\"" || afterColon.matches(Regex("\"[^\"]*$"))) {
-                // Find the key that goes with this incomplete value
-                val beforeColon = cleaned.substring(0, lastColonIndex)
-                val lastCommaOrBrace = maxOf(beforeColon.lastIndexOf(','), beforeColon.lastIndexOf('{'))
-                if (lastCommaOrBrace >= 0) {
-                    cleaned = cleaned.substring(0, lastCommaOrBrace + 1).trimEnd(',')
+            try {
+                if (afterColon == "\"" || afterColon.matches("\"[^\"]*$".toRegex())) {
+                    // Find the key that goes with this incomplete value
+                    val beforeColon = cleaned.substring(0, lastColonIndex)
+                    val lastCommaOrBrace = maxOf(beforeColon.lastIndexOf(','), beforeColon.lastIndexOf('{'))
+                    if (lastCommaOrBrace >= 0) {
+                        cleaned = cleaned.substring(0, lastCommaOrBrace + 1).trimEnd(',')
+                    }
+                }
+            } catch (regexError: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Regex error in incomplete value detection: ${regexError.message}")
+                // Fallback: just check for simple incomplete quote
+                if (afterColon == "\"" || (afterColon.startsWith("\"") && !afterColon.endsWith("\""))) {
+                    val beforeColon = cleaned.substring(0, lastColonIndex)
+                    val lastCommaOrBrace = maxOf(beforeColon.lastIndexOf(','), beforeColon.lastIndexOf('{'))
+                    if (lastCommaOrBrace >= 0) {
+                        cleaned = cleaned.substring(0, lastCommaOrBrace + 1).trimEnd(',')
+                    }
                 }
             }
         }
@@ -2759,49 +2767,86 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
             val vocabulary = mutableListOf<VocabularyItem>()
             val identifiedSentences = mutableListOf<IdentifiedSentence>()
             
-            // Extract basic fields using regex
-            val originalTextMatch = Regex("\"originalText\"\\s*:\\s*\"([^\"]+)\"").find(content)
-            originalTextMatch?.let { originalText = it.groupValues[1] }
+            // Extract basic fields using regex with error handling
+            try {
+                val originalTextMatch = "\"originalText\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(content)
+                originalTextMatch?.let { originalText = it.groupValues[1] }
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Error extracting originalText: ${e.message}")
+            }
             
-            val translationMatch = Regex("\"translation\"\\s*:\\s*\"([^\"]+)\"").find(content)
-            translationMatch?.let { translation = it.groupValues[1] }
+            try {
+                val translationMatch = "\"translation\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(content)
+                translationMatch?.let { translation = it.groupValues[1] }
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Error extracting translation: ${e.message}")
+            }
             
             // Extract vocabulary items with more robust pattern
-            val vocabPattern = Regex("\"word\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"reading\"\\s*:\\s*\"([^\"]*?)\"\\s*,\\s*\"meaning\"\\s*:\\s*\"([^\"]+)\"")
-            vocabPattern.findAll(content).forEach { match ->
-                vocabulary.add(VocabularyItem(
-                    word = match.groupValues[1],
-                    reading = match.groupValues[2],
-                    meaning = match.groupValues[3],
-                    partOfSpeech = ""
-                ))
+            try {
+                val vocabPattern = "\"word\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"reading\"\\s*:\\s*\"([^\"]*?)\"\\s*,\\s*\"meaning\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                vocabPattern.findAll(content).forEach { match ->
+                    vocabulary.add(VocabularyItem(
+                        word = match.groupValues[1],
+                        reading = match.groupValues[2],
+                        meaning = match.groupValues[3],
+                        partOfSpeech = ""
+                    ))
+                }
+            } catch (e: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Error extracting vocabulary: ${e.message}")
+                // Fallback: try simpler pattern matching
+                try {
+                    val simpleVocabPattern = "\"word\":\"([^\"]+)\"".toRegex()
+                    simpleVocabPattern.findAll(content).forEach { match ->
+                        vocabulary.add(VocabularyItem(
+                            word = match.groupValues[1],
+                            reading = "",
+                            meaning = "",
+                            partOfSpeech = ""
+                        ))
+                    }
+                } catch (fallbackError: Exception) {
+                    Logger.w(Logger.Category.AI_SERVICE, "Fallback vocabulary extraction failed: ${fallbackError.message}")
+                }
             }
             
             // Extract identified sentences with enhanced pattern matching
-            val sentenceBlockPattern = Regex("\\{[^{}]*\"id\"[^{}]*\"text\"[^{}]*\"translation\"[^{}]*\\}")
-            var sentenceId = 1
-            
-            sentenceBlockPattern.findAll(content).forEach { match ->
-                try {
-                    val sentenceBlock = match.value
-                    val textMatch = Regex("\"text\"\\s*:\\s*\"([^\"]+)\"").find(sentenceBlock)
-                    val translationMatch = Regex("\"translation\"\\s*:\\s*\"([^\"]+)\"").find(sentenceBlock)
+            try {
+                val sentenceBlockPattern = "\\{[^{}]*\"id\"[^{}]*\"text\"[^{}]*\"translation\"[^{}]*\\}".toRegex()
+                var sentenceId = 1
+                
+                sentenceBlockPattern.findAll(content).forEach { match ->
+                    try {
+                        val sentenceBlock = match.value
+                        val textMatch = "\"text\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(sentenceBlock)
+                        val translationMatch = "\"translation\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(sentenceBlock)
                     
-                    if (textMatch != null && translationMatch != null) {
-                        // Try to extract position if available
-                        val positionMatch = Regex("\"position\"\\s*:\\s*\\{[^}]*\"x\"\\s*:\\s*([\\d.]+)[^}]*\"y\"\\s*:\\s*([\\d.]+)[^}]*\\}").find(sentenceBlock)
-                        val position = if (positionMatch != null) {
-                            val x = positionMatch.groupValues[1].toFloatOrNull() ?: 0.1f
-                            val y = positionMatch.groupValues[2].toFloatOrNull() ?: 0.1f
-                            TextPosition(x, y, 0.25f, 0.06f)
-                        } else {
-                            TextPosition(
-                                x = 0.1f + (sentenceId % 3) * 0.3f,
-                                y = 0.2f + (sentenceId / 3) * 0.2f,
-                                width = 0.25f,
-                                height = 0.06f
-                            )
-                        }
+                        if (textMatch != null && translationMatch != null) {
+                            // Try to extract position if available
+                            val position = try {
+                                val positionMatch = "\"position\"\\s*:\\s*\\{[^}]*\"x\"\\s*:\\s*([\\d.]+)[^}]*\"y\"\\s*:\\s*([\\d.]+)[^}]*\\}".toRegex().find(sentenceBlock)
+                                if (positionMatch != null) {
+                                    val x = positionMatch.groupValues[1].toFloatOrNull() ?: 0.1f
+                                    val y = positionMatch.groupValues[2].toFloatOrNull() ?: 0.1f
+                                    TextPosition(x, y, 0.25f, 0.06f)
+                                } else {
+                                    TextPosition(
+                                        x = 0.1f + (sentenceId % 3) * 0.3f,
+                                        y = 0.2f + (sentenceId / 3) * 0.2f,
+                                        width = 0.25f,
+                                        height = 0.06f
+                                    )
+                                }
+                            } catch (positionError: Exception) {
+                                Logger.w(Logger.Category.AI_SERVICE, "Error extracting position: ${positionError.message}")
+                                TextPosition(
+                                    x = 0.1f + (sentenceId % 3) * 0.3f,
+                                    y = 0.2f + (sentenceId / 3) * 0.2f,
+                                    width = 0.25f,
+                                    height = 0.06f
+                                )
+                            }
                         
                         identifiedSentences.add(IdentifiedSentence(
                             id = sentenceId++,
@@ -2814,9 +2859,12 @@ Analyze this manga image and detect ALL individual text elements with their EXAC
                             grammarPatterns = emptyList() // Grammar patterns will be enriched in ViewModel
                         ))
                     }
-                } catch (e: Exception) {
-                    Logger.w(Logger.Category.AI_SERVICE, "Failed to parse sentence block: ${e.message}")
+                    } catch (e: Exception) {
+                        Logger.w(Logger.Category.AI_SERVICE, "Failed to parse sentence block: ${e.message}")
+                    }
                 }
+            } catch (sentenceExtractionError: Exception) {
+                Logger.w(Logger.Category.AI_SERVICE, "Overall sentence extraction failed: ${sentenceExtractionError.message}")
             }
             
             if (originalText.isNotEmpty() || translation.isNotEmpty() || vocabulary.isNotEmpty() || identifiedSentences.isNotEmpty()) {

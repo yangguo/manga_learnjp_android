@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 
 /**
- * AIService with enhanced JSON parsing capabilities
+ * AIService with enhanced JSON parsing capabilities and improved sentence-by-sentence analysis
  * 
  * JSON Handling Improvements based on Android Kotlin best practices:
  * 1. Defensive parsing with null safety validation
@@ -43,6 +43,15 @@ import kotlin.math.pow
  * 4. Safe array parsing with exception handling
  * 5. Comprehensive error logging and fallback mechanisms
  * 6. Content validation before and after parsing
+ * 
+ * Sentence-by-Sentence Analysis Improvements:
+ * 1. Visual-based sentence identification using speech bubbles, text boxes, and layout
+ * 2. Context-aware text splitting that doesn't rely solely on punctuation
+ * 3. Individual sentence analysis with vocabulary breakdown
+ * 4. Grammar pattern identification for each sentence
+ * 5. Detailed vocabulary information (readings, JLPT levels, difficulty)
+ * 6. Quick analysis mode optimized for efficient learning
+ * 7. Comprehensive context and cultural notes
  * 
  * These improvements address common JSON parsing issues:
  * - "Expected BEGIN_OBJECT but was STRING" errors
@@ -109,20 +118,36 @@ class AIService {
     
     private val mangaAnalysisPrompt = """
         You are an expert Japanese language tutor specializing in manga analysis. 
-        Analyze the provided manga panel image and extract ALL Japanese text, then perform a sentence-by-sentence analysis.
+        Analyze the provided manga panel image and extract ALL Japanese text, then perform a comprehensive sentence-by-sentence analysis.
 
         **Instructions:**
         1.  **Extract ALL Text:** Identify and extract every piece of Japanese text from the image, including dialogue, narration, and sound effects.
-        2.  **Split into Sentences:** Divide the extracted text into individual sentences or logical phrases.
-        3.  **Analyze Each Sentence:** For each sentence, provide:
-            *   `originalSentence`: The sentence in Japanese.
-            *   `translation`: The English translation of the sentence.
-            *   `vocabulary`: A breakdown of key vocabulary words in that sentence.
-        4.  **Provide Overall Analysis:** After analyzing all sentences, provide a combined summary including:
-            *   `originalText`: All extracted Japanese text combined.
-            *   `translation`: A complete English translation of all text.
-            *   `grammarPatterns`: A list of grammar patterns found anywhere in the text.
-            *   `context`: Any relevant cultural or contextual notes.
+        2.  **Split into Sentences:** Identify individual sentences or logical phrases using visual and contextual analysis:
+             - **Visual Separation**: Use speech bubbles, text boxes, and panel layouts to identify sentence boundaries
+             - **Speaker Changes**: Separate text from different characters or speakers
+             - **Punctuation When Available**: Use 。！？、for sentence breaks when present
+             - **Line Breaks and Spacing**: Consider visual line breaks and text spacing as sentence indicators
+             - **Context-Based Splitting**: Split based on complete thoughts or dialogue turns even without punctuation
+             - **Sound Effects**: Treat onomatopoeia and sound effects as separate units
+        3.  **Analyze Each Sentence:** For each sentence, provide detailed analysis:
+            *   `originalSentence`: The sentence in Japanese exactly as written
+            *   `translation`: Natural English translation preserving meaning and tone
+            *   `vocabulary`: Key vocabulary words with complete information:
+                - `word`: The Japanese word (kanji/hiragana/katakana)
+                - `reading`: Hiragana reading (furigana)
+                - `meaning`: English definition
+                - `partOfSpeech`: Grammatical category (noun, verb, adjective, etc.)
+                - `jlptLevel`: JLPT level (N5, N4, N3, N2, N1) if applicable
+                - `difficulty`: Learning difficulty (1-5 scale)
+        4.  **Provide Overall Analysis:** After analyzing all sentences, provide:
+            *   `originalText`: All extracted Japanese text combined in reading order
+            *   `translation`: Complete English translation of all text
+            *   `grammarPatterns`: Grammar patterns found with:
+                - `pattern`: The grammar structure
+                - `explanation`: How it works and when to use it
+                - `example`: Usage example from the text or similar
+                - `difficulty`: Learning difficulty level
+            *   `context`: Cultural notes, character relationships, situational context
 
         **JSON Output Structure:**
         Return the analysis in a JSON object with the following structure:
@@ -133,15 +158,15 @@ class AIService {
             {
               "originalSentence": "(first Japanese sentence)",
               "translation": "(English translation of first sentence)",
-              "vocabulary": [{"word": "", "reading": "", "meaning": ""}]
+              "vocabulary": [{"word": "", "reading": "", "meaning": "", "partOfSpeech": "", "jlptLevel": "", "difficulty": 1}]
             },
             {
               "originalSentence": "(second Japanese sentence)",
               "translation": "(English translation of second sentence)",
-              "vocabulary": [{"word": "", "reading": "", "meaning": ""}]
+              "vocabulary": [{"word": "", "reading": "", "meaning": "", "partOfSpeech": "", "jlptLevel": "", "difficulty": 1}]
             }
           ],
-          "grammarPatterns": [{"pattern": "", "explanation": "", "usage": ""}],
+          "grammarPatterns": [{"pattern": "", "explanation": "", "example": "", "difficulty": ""}],
           "context": "(cultural and contextual notes)"
         }
     """.trimIndent()
@@ -160,6 +185,41 @@ class AIService {
         - Memory aids and mnemonics
         
         Combine ALL text found into the originalText field and provide comprehensive vocabulary analysis.
+    """.trimIndent()
+    
+    private val quickAnalysisPrompt = """
+        You are a Japanese language tutor providing quick but thorough manga analysis.
+        Extract ALL Japanese text and analyze it sentence by sentence for efficient learning.
+
+        **Quick Analysis Instructions:**
+        1. **Extract ALL Text:** Get every piece of Japanese text (dialogue, narration, sound effects).
+        2. **Split into Sentences:** Identify sentences using visual and contextual analysis:
+            - **Visual Cues**: Use speech bubbles, text boxes, and visual separation
+            - **Speaker Changes**: Separate different characters' dialogue
+            - **Punctuation**: Use 。！？、when available
+            - **Context**: Split based on complete thoughts even without punctuation
+        3. **Analyze Each Sentence:** For every sentence provide:
+            - `originalSentence`: Japanese text exactly as written
+            - `translation`: Clear English translation
+            - `vocabulary`: Essential words with readings, meanings, part of speech, JLPT level, and difficulty
+            - Focus on learning value while keeping explanations concise
+
+        **JSON Output Structure:**
+        {
+          "originalText": "(all Japanese text combined)",
+          "translation": "(complete English translation)",
+          "sentenceAnalyses": [
+            {
+              "originalSentence": "(Japanese sentence)",
+              "translation": "(English translation)",
+              "vocabulary": [{"word": "", "reading": "", "meaning": "", "partOfSpeech": "", "jlptLevel": "", "difficulty": 1}]
+            }
+          ],
+          "grammarPatterns": [{"pattern": "", "explanation": "", "example": "", "difficulty": ""}],
+          "context": "(brief contextual notes)"
+        }
+        
+        Focus on accuracy and educational value while keeping explanations concise for quick learning.
     """.trimIndent()
     
     init {
@@ -290,7 +350,7 @@ class AIService {
             val prompt = when (analysisType) {
                 AnalysisType.COMPREHENSIVE -> mangaAnalysisPrompt
                 AnalysisType.VOCABULARY_FOCUS -> vocabularyFocusPrompt
-                AnalysisType.QUICK_TRANSLATION -> "Extract ALL Japanese text from EVERY element in this manga panel (speech bubbles, sound effects, background text, etc.) and provide quick translation. Combine ALL text found into a single comprehensive result."
+                AnalysisType.QUICK_TRANSLATION -> quickAnalysisPrompt
             }
             
             // Use the enhanced analysis with custom prompt
@@ -310,10 +370,22 @@ class AIService {
         }
     }
     
+    /**
+     * Quick AI analysis mode with enhanced sentence-by-sentence analysis
+     * Splits text into individual sentences and analyzes each for vocabulary and grammar patterns
+     */
+    suspend fun analyzeImageQuick(
+        bitmap: Bitmap,
+        config: AIConfig
+    ): Result<TextAnalysis> = withContext(Dispatchers.IO) {
+        Logger.i(Logger.Category.AI_SERVICE, "Starting quick sentence-by-sentence analysis")
+        return@withContext analyzeImageEnhanced(bitmap, config, AnalysisType.QUICK_TRANSLATION)
+    }
+    
     enum class AnalysisType {
-        COMPREHENSIVE,
-        VOCABULARY_FOCUS,
-        QUICK_TRANSLATION
+        COMPREHENSIVE,      // Full detailed analysis with comprehensive sentence breakdown
+        VOCABULARY_FOCUS,   // Focus on vocabulary extraction and learning
+        QUICK_TRANSLATION   // Enhanced quick analysis with sentence-by-sentence breakdown
     }
     
     suspend fun detectPanels(
@@ -1438,10 +1510,27 @@ class AIService {
                         emptyList<VocabularyItem>()
                     }
                     
+                    // Parse grammar patterns for this sentence
+                    val sentenceGrammar = try {
+                        val grammarArray = sentenceObj.getAsJsonArray("grammarPatterns")
+                        grammarArray?.map { grammarElement ->
+                            val grammarObj = grammarElement.asJsonObject
+                            GrammarPattern(
+                                pattern = grammarObj.get("pattern")?.asString ?: "",
+                                explanation = grammarObj.get("explanation")?.asString ?: "",
+                                example = grammarObj.get("example")?.asString ?: "",
+                                difficulty = grammarObj.get("difficulty")?.asString ?: ""
+                            )
+                        } ?: emptyList()
+                    } catch (e: Exception) {
+                        emptyList<GrammarPattern>()
+                    }
+                    
                     SentenceAnalysis(
                         originalSentence = sentenceObj.get("originalSentence")?.asString ?: "",
                         translation = sentenceObj.get("translation")?.asString ?: "",
                         vocabulary = sentenceVocab,
+                        grammarPatterns = sentenceGrammar,
                         position = position
                     )
                 } ?: emptyList()

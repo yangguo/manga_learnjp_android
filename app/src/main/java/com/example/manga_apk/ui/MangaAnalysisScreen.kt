@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1238,12 +1239,142 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                 fontWeight = FontWeight.Bold
             )
 
-            if (analysis.originalText.isNotEmpty()) {
+            // Display sentence-by-sentence analysis if available
+            if (analysis.sentenceAnalyses.isNotEmpty()) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Sentence Analysis:",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    analysis.sentenceAnalyses.forEachIndexed { index, sentence ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Sentence number
+                                Text(
+                                    "Sentence ${index + 1}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                
+                                // Original Japanese text
+                                if (sentence.originalSentence.isNotEmpty()) {
+                                    Text(
+                                        "Japanese: ${sentence.originalSentence}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                
+                                // Translation
+                                Text(
+                                    "Translation: ${sentence.translation}",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                
+                                // Vocabulary for this sentence
+                                 if (sentence.vocabulary.isNotEmpty()) {
+                                     Text(
+                                         "Key Vocabulary:",
+                                         fontSize = 12.sp,
+                                         fontWeight = FontWeight.Medium,
+                                         color = MaterialTheme.colorScheme.secondary
+                                     )
+                                     sentence.vocabulary.take(5).forEach { vocab ->
+                                         Text(
+                                             "• ${vocab.word} (${vocab.reading}) - ${vocab.meaning}",
+                                             fontSize = 11.sp,
+                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                             modifier = Modifier.padding(start = 8.dp)
+                                         )
+                                     }
+                                 }
+                                 
+                                 // Grammar patterns for this sentence
+                                 if (sentence.grammarPatterns.isNotEmpty()) {
+                                     Text(
+                                         "Grammar Patterns:",
+                                         fontSize = 12.sp,
+                                         fontWeight = FontWeight.Medium,
+                                         color = MaterialTheme.colorScheme.tertiary
+                                     )
+                                     sentence.grammarPatterns.take(3).forEach { grammar ->
+                                         Column(
+                                             modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                                         ) {
+                                             Text(
+                                                 "• ${grammar.pattern}",
+                                                 fontSize = 11.sp,
+                                                 fontWeight = FontWeight.Medium,
+                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                                             )
+                                             Text(
+                                                 "  ${grammar.explanation}",
+                                                 fontSize = 10.sp,
+                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                 modifier = Modifier.padding(start = 4.dp)
+                                             )
+                                             if (grammar.example.isNotEmpty()) {
+                                                 Text(
+                                                     "  Example: ${grammar.example}",
+                                                     fontSize = 10.sp,
+                                                     fontStyle = FontStyle.Italic,
+                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                     modifier = Modifier.padding(start = 4.dp)
+                                                 )
+                                             }
+                                         }
+                                     }
+                                 }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Fallback to original display if no sentence analysis available
+                if (analysis.originalText.isNotEmpty()) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Original Text:",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Text(
+                                analysis.originalText,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "Original Text:",
+                        "Translation:",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
@@ -1254,7 +1385,7 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                         )
                     ) {
                         Text(
-                            analysis.originalText,
+                            analysis.translation,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(12.dp)
                         )
@@ -1262,72 +1393,7 @@ fun AnalysisResultCard(analysis: TextAnalysis) {
                 }
             }
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    "Translation:",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text(
-                        analysis.translation,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
 
-            if (analysis.vocabulary.isNotEmpty()) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        "Vocabulary:",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            analysis.vocabulary.take(10).forEach { vocab ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        "${vocab.word} (${vocab.reading})",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        vocab.meaning,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.weight(1f),
-                                        textAlign = TextAlign.End
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
